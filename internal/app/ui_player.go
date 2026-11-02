@@ -429,7 +429,7 @@ func (a *app) playerBar(c *ui.Context) {
 	// The controls keep the middle, between sides that share what is left:
 	// narrower, the middle gives up to 140 DIPs, and what plays keeps room
 	// for its cover, some of its title and its heart.
-	const controls = 3*32 + 2*4 // lyrics, queue and the speaker
+	const controls = 5*32 + 4*4 // the floating windows, lyrics, queue and the speaker
 	bar := ui.Row(c).Absolute().Gap(20).AlignItems(ui.Center)
 	a.barBox = bar.LayoutBounds()
 	if liquid {
@@ -460,7 +460,7 @@ func (a *app) playerBar(c *ui.Context) {
 					// Another song's comes in over the last one's.
 					var shown ui.Element
 					if spinning {
-						shown = a.barDisc(c, tr)
+						shown = a.barDisc(c, tr, 48, discFrame)
 					} else {
 						shown = a.cover(c.Key(tr.ID), tr.Album.PicURL, 120, 48, cover)
 					}
@@ -520,6 +520,16 @@ func (a *app) playerBar(c *ui.Context) {
 
 		// Lyrics and volume.
 		ui.Row(c).Grow(1).Basis(0).MinWidth(controls).Justify(ui.End).AlignItems(ui.Center).Gap(4).Children(func() {
+			desk := muted
+			if a.settings.DeskLyrics {
+				desk = p.accent
+			}
+			if iconButton(c.Key("desk-lyrics"), iconSubtitles, 16, desk, "桌面歌词").Clicked() {
+				a.toggleDeskLyrics()
+			}
+			if iconButton(c.Key("mini"), iconMiniWin, 16, muted, "迷你窗口").Clicked() {
+				a.showMini()
+			}
 			lyr := muted
 			if a.nowPlaying {
 				lyr = p.accent

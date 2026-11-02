@@ -140,10 +140,15 @@ type app struct {
 	playFlies             func(ui.Element) // what hides the play button being built as it flies
 	pageDir               int              // the way the page last changed: 1 in, -1 back, 0 across
 	feedback              feedbackState    // the message being written, in the settings
+	roam                  *roamer          // what deals the songs of styles
+	deskWin, miniWin      *mygo.Window     // the windows that float, once opened
 	splashed              bool             // the record has come in, as the app started
 	splashAt              time.Time        // when it started to
 	keysTaken             int              // how many global keys other apps hold
 	playKey               string           // the global key that plays and pauses
+	likeKey               string           // and the one that likes
+	miniScrub             scrubState       // the progress of the mini window
+	morph                 floatMorph       // the player on its way to or from it
 	sleepTimer            *time.Timer      // pauses the music once the time set is up
 	sleepAt               time.Time        // when
 	sleepMinutes          int              // what the listener chose
@@ -204,6 +209,12 @@ func (a *app) redraw() {
 	}
 	if a.notch != nil && a.notch.win != nil {
 		a.notch.win.Invalidate()
+	}
+	if a.deskWin != nil {
+		a.deskWin.Invalidate()
+	}
+	if a.miniWin != nil {
+		a.miniWin.Invalidate()
 	}
 }
 
@@ -298,6 +309,7 @@ func Run() error {
 		// Shown or switched to the morning after, it shows the new day's.
 		a.win.OnFocus(a.freshenHome)
 		a.applyTray()
+		a.applyDeskLyrics()
 		if shotHook != nil {
 			shotHook(a)
 		}

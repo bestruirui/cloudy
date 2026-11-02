@@ -28,6 +28,9 @@ func radioLabel(name string) string {
 	if name == heartRadio {
 		return "心动模式"
 	}
+	if isRoam(name) {
+		return "风格漫游 · " + strings.TrimPrefix(name, stylePrefix)
+	}
 	for _, m := range fmModes {
 		if name == fmRadio(m.mode) {
 			return "私人 FM · " + m.label
@@ -66,6 +69,12 @@ func (a *app) radioFeed(name string) func(got func([]netease.Track)) {
 		case strings.HasPrefix(name, "fm:"):
 			mode := strings.TrimPrefix(name, "fm:")
 			fetch = func() ([]netease.Track, error) { return netease.PersonalFM(mode) }
+		case isRoam(name):
+			label := strings.TrimPrefix(name, stylePrefix)
+			if a.roam == nil {
+				a.roam = &roamer{}
+			}
+			fetch = func() ([]netease.Track, error) { return a.roam.next(label) }
 		case name == heartRadio:
 			// More like the last song queued, from the song it began with.
 			q, pid := a.pl.Queue(), a.likedPlaylist()
@@ -104,6 +113,11 @@ func (a *app) playFM() {
 		}
 		return
 	}
+	a.startRadio(name, "私人 FM 暂时无法播放，请稍后再试")
+}
+
+// startRadio plays the radio name, or says it can't, as failed.
+func (a *app) startRadio(name, failed string) {
 	a.radioStarting = name
 	feed := a.radioFeed(name)
 	feed(func(tracks []netease.Track) {
@@ -112,7 +126,7 @@ func (a *app) playFM() {
 		}
 		a.radioStarting = ""
 		if len(tracks) == 0 {
-			a.toast = "私人 FM 暂时无法播放，请稍后再试"
+			a.toast = failed
 			return
 		}
 		a.pl.PlayRadio(name, tracks, feed)
@@ -127,7 +141,10 @@ func (a *app) exitRadio() {
 	}
 	a.pl.EndRadio()
 	label := radioLabel(name)
-	if name != heartRadio {
+	switch {
+	case isRoam(name):
+		label = "风格漫游"
+	case name != heartRadio:
 		label = "私人 FM"
 	}
 	a.toast = "已退出" + label
@@ -139,9 +156,11 @@ func (a *app) trashFM() {
 	if tr == nil {
 		return
 	}
-	id := tr.ID
+	id, roaming := tr.ID, isRoam(a.pl.Radio())
 	a.pl.Next()
-	go netease.FMTrash(id)
+	if !roaming {
+		go netease.FMTrash(id)
+	}
 }
 
 // startHeartMode plays songs like one the listener likes: the one playing,
@@ -238,13 +257,14 @@ func (a *app) fmPage(c *ui.Context) {
 		a.fmCard(c)
 		a.section(c, "心动模式")
 		a.heartCard(c, p)
+		a.roamSection(c)
 	})
 }
 
 // fmCard shows the song the FM plays, or how to start it.
 func (a *app) fmCard(c *ui.Context) {
 	pl := a.pl
-	onFM := strings.HasPrefix(pl.Radio(), "fm:")
+	onFM := strings.HasPrefix(pl.Radio(), "fm:") || isRoam(pl.Radio())
 	var tr *netease.Track
 	if onFM {
 		tr = pl.Current()

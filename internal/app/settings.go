@@ -59,6 +59,18 @@ type settings struct {
 	// LyricShift is how many milliseconds a song's lyrics run early, by its
 	// ID, where they don't keep time with it.
 	LyricShift map[int64]int `json:"lyricShift,omitempty"`
+	// DeskLyrics shows the lyrics in a window of their own, over the others,
+	// at DeskX and DeskY, or at the foot of the screen, DeskScale of their
+	// size as designed. DeskLock lets the pointer through them.
+	DeskLyrics bool    `json:"deskLyrics"`
+	DeskLock   bool    `json:"deskLock"`
+	DeskStyle  string  `json:"deskStyle,omitempty"`
+	DeskScale  float64 `json:"deskScale,omitempty"`
+	DeskX      int     `json:"deskX,omitempty"`
+	DeskY      int     `json:"deskY,omitempty"`
+	// MiniX and MiniY are where the mini window was left.
+	MiniX int `json:"miniX,omitempty"`
+	MiniY int `json:"miniY,omitempty"`
 	// Smoke makes the progress bars comets trailing smoke as music plays,
 	// for a few percent of a core: the listener turns it on.
 	Smoke bool `json:"smoke"`
@@ -99,7 +111,7 @@ type settings struct {
 }
 
 func defaultSettings() settings {
-	return settings{BarSpin: true, GlobalKeys: true, NotchActivity: true, Quality: "exhigh", Appearance: "system", LiquidGlass: true, NpLight: true, GlowLevel: 0.5, GlassClear: 0.5, GlassBend: 0.5, GlassPanels: true, Volume: 0.8, Normalize: true, AppIcon: "dock-and-menubar", CacheMB: 2048, Captions: true}
+	return settings{BarSpin: true, GlobalKeys: true, NotchActivity: true, Quality: "exhigh", Appearance: "system", LiquidGlass: true, NpLight: true, GlowLevel: 0.5, GlassClear: 0.6, GlassBend: 0.3, GlassPanels: true, Volume: 0.8, Normalize: true, AppIcon: "dock-and-menubar", CacheMB: 2048, Captions: true}
 }
 
 func settingsPath() (string, error) {

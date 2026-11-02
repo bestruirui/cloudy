@@ -407,9 +407,10 @@ type discState struct {
 // for what shows on it to stay readable, which a few frames a second keep
 // smooth; and how long it takes to stop, in seconds, as music pauses.
 const (
-	discRate  = 30
-	discCoast = 0.35
-	discFrame = time.Second / 15
+	discRate   = 30
+	discCoast  = 0.35
+	discFrame  = time.Second / 15
+	discSmooth = time.Second / 40 // where it is large enough to be looked at
 )
 
 // at is how far it has turned by now.
@@ -427,13 +428,13 @@ func (a *app) spins() bool { return a.settings.BarSpin && a.motion == motionFull
 // barDisc is the cover in the bar as a record, which turns as music plays and
 // coasts to a stop as it pauses. It is drawn alone, a few times a second, for
 // nothing else to be painted for it.
-func (a *app) barDisc(c *ui.Context, tr *netease.Track) ui.Element {
+func (a *app) barDisc(c *ui.Context, tr *netease.Track, size float32, frame time.Duration) ui.Element {
 	s, now, playing := &a.spin, c.Now(), a.pl.Playing()
 	if playing != s.on {
 		s.angle, s.since, s.on = s.at(now), now, playing
 	}
 	bmp := bitmap(a.art.get(netease.Sized(tr.Album.PicURL, 120), false))
-	box := ui.Box(c.Key(tr.ID)).Size(48, 48).Radius(999)
+	box := ui.Box(c.Key(tr.ID)).Size(size, size).Radius(999)
 	in := artIn(box, bmp)
 	if in < 1 {
 		box.Background(a.pal.hover)
@@ -441,12 +442,12 @@ func (a *app) barDisc(c *ui.Context, tr *netease.Track) ui.Element {
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
 		now := p.Now()
 		if s.on || now.Sub(s.since) < time.Duration(4*discCoast*float64(time.Second)) {
-			p.After(discFrame)
+			p.After(frame)
 		}
 		if bmp == nil {
 			return
 		}
-		p.Clip(r, 24, func() {
+		p.Clip(r, r.W/2, func() {
 			p.Transform(ui.Rotation(s.at(now)), r.X+r.W/2, r.Y+r.H/2, func() {
 				p.ImageRegion(bmp, ui.Rect{}, r, ui.ImageOptions{Tint: white.Alpha(in)})
 			})

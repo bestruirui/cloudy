@@ -407,8 +407,11 @@ func (a *app) choosePane(i int) {
 // its cross, leaves the radio, playing on the song.
 func (a *app) radioChip(c *ui.Context, name string) {
 	icon, exit := iconRadio, "退出私人 FM"
-	if name == heartRadio {
+	switch {
+	case name == heartRadio:
 		icon, exit = iconHeartFill, "退出心动模式"
+	case isRoam(name):
+		exit = "退出风格漫游"
 	}
 	chip := ui.ButtonBase(c.Key("radio-chip")).Gap(5).Padding(3, 6, 3, 8).Margin(0, 0, 4, -8).Radius(999).
 		AlignItems(ui.Center).AlignSelf(ui.Start).FocusRing(false).Label(exit).Tooltip(exit)

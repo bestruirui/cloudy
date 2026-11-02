@@ -11,6 +11,9 @@ nya 维护的第三方网易云音乐桌面客户端，基于 [egoist/mygo-cloud
 - 全局 UI 统一：黑玻璃菜单、玻璃设置面板，圆角收成 4 档，侧栏带封面色调
 - 完整的动画：播放页从播放栏展开，封面在卡片和详情之间飞入飞回，页面、弹层和列表都有过渡
 - 歌单页改版：封面氛围背景、吸顶页头、列表内搜索与排序、封面堆叠
+- 桌面歌词：透明悬浮，逐字点亮，五种样式，可拖动、调字号和锁定
+- 迷你窗口：置顶的小窗播放器，可以拖进度、调音量，和主窗口之间有展开收起动画
+- 风格漫游：42 种心情、场景、语种和曲风，不登录也能听
 - 全局快捷键、定时关闭、按歌曲校准歌词时间、调节歌词字号
 - 多种中文字体，列表里直接预览
 - 设置里可以直接发送反馈
@@ -51,6 +54,7 @@ go test ./...        # 运行测试
 ## 致谢
 
 - [egoist/mygo-cloudmusic](https://github.com/egoist/mygo-cloudmusic)：本项目修改自它，原作者 egoist
+- [Lucide](https://lucide.dev)：部分图标（ISC 许可）
 - [MyGo](https://github.com/egoist/mygo)：原生 UI 与应用框架
 - [NeteaseCloudMusicApi](https://github.com/Binaryify/NeteaseCloudMusicApi)：eapi 加密与登录流程的参考
 - [folia-major](https://github.com/chthollyphile/folia-major)：歌词动画效果的参考

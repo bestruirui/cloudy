@@ -22,12 +22,13 @@ var globalKeys = []struct {
 	{[]string{"Ctrl+Alt+Left"}, func(a *app) { a.pl.Prev() }},
 	{[]string{"Ctrl+Alt+Up"}, func(a *app) { a.nudgeVolume(0.05) }},
 	{[]string{"Ctrl+Alt+Down"}, func(a *app) { a.nudgeVolume(-0.05) }},
+	{[]string{"Ctrl+Alt+V", "Ctrl+Alt+L"}, func(a *app) { a.likeCurrent() }},
 }
 
 // applyGlobalKeys registers the keys that work from any app, or lets them go.
 // Other apps may hold all of those of something, which keysTaken counts.
 func (a *app) applyGlobalKeys() {
-	a.keysTaken, a.playKey = 0, ""
+	a.keysTaken, a.playKey, a.likeKey = 0, "", ""
 	for i, k := range globalKeys {
 		for _, keys := range k.keys {
 			mygo.GlobalShortcut.Unregister(keys)
@@ -43,8 +44,11 @@ func (a *app) applyGlobalKeys() {
 			})
 			if err == nil {
 				taken = false
-				if i == 0 {
+				switch i {
+				case 0:
 					a.playKey = keys
+				case len(globalKeys) - 1:
+					a.likeKey = keys
 				}
 				break
 			}

@@ -18,7 +18,7 @@ import (
 func TestGlassPanelsOffIsKept(t *testing.T) {
 	s := defaultSettings()
 	json.Unmarshal([]byte(`{"quality":"exhigh"}`), &s)
-	if !s.GlassPanels || s.GlassClear != 0.5 || s.GlassBend != 0.5 || s.GlowLevel != 0.5 {
+	if !s.GlassPanels || s.GlassClear != 0.6 || s.GlassBend != 0.3 || s.GlowLevel != 0.5 {
 		t.Errorf("settings from before the options load as %+v", s)
 	}
 	s.GlassPanels, s.GlassClear = false, 0

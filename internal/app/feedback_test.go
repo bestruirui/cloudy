@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/egoist/mygo/ui"
+
 	"netease-music-mygo/internal/netease"
 )
 
@@ -141,5 +143,72 @@ func TestPlaylistSearchAndSort(t *testing.T) {
 	a.route = route{page: pagePlaylist, id: 2}
 	if a.listShown(pl.Tracks); a.plView.sort != 0 {
 		t.Error("the next playlist opened sorted as the last one")
+	}
+}
+
+// Every style can be told from the others, and has something to show.
+func TestRoamStyles(t *testing.T) {
+	seen := map[string]bool{}
+	for _, g := range roamGroups {
+		for _, s := range g.styles {
+			if seen[s.label] {
+				t.Errorf("%s twice", s.label)
+			}
+			seen[s.label] = true
+			if s.words == "" || s.icon == nil && s.glyph == "" {
+				t.Errorf("%s finds or shows nothing", s.label)
+			}
+		}
+	}
+	if len(seen) != 42 {
+		t.Errorf("%d styles", len(seen))
+	}
+	if !isRoam(styleRadio("摇滚")) || radioLabel(styleRadio("摇滚")) != "风格漫游 · 摇滚" {
+		t.Errorf("a style radio reads %q", radioLabel(styleRadio("摇滚")))
+	}
+}
+
+// A style deals its songs a few at a time, none twice, and none that can't play.
+func TestRoamerDealsEachSongOnce(t *testing.T) {
+	var songs []netease.Track
+	for id := range int64(20) {
+		songs = append(songs, netease.Track{ID: id + 1, Privilege: &netease.Privilege{Pl: 320000}})
+	}
+	songs = append(songs, songs[0])
+	r := &roamer{pools: map[string][]netease.Playlist{}, dealing: map[string][]netease.Track{"摇滚": songs}, played: map[int64]bool{}}
+	dealt := map[int64]bool{}
+	for dealt2 := 0; dealt2 < 2; dealt2++ {
+		got, err := r.next("摇滚")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got) == 0 || len(got) > roamBatch {
+			t.Fatalf("dealt %d songs", len(got))
+		}
+		for _, tr := range got {
+			if dealt[tr.ID] {
+				t.Errorf("song %d twice", tr.ID)
+			}
+			dealt[tr.ID] = true
+		}
+	}
+}
+
+// Ctrl+Alt+V likes the song playing, and Ctrl+V doesn't: that is for pasting.
+func TestLikeKey(t *testing.T) {
+	a := newTestApp()
+	a.settings = defaultSettings()
+	a.pl.Cue([]netease.Track{{ID: 1, Name: "一首歌", Duration: 180000}})
+	tt := ui.NewTester(a.view, 1100, 760)
+	tt.Frame()
+	tt.Key(ui.Cmd, ui.KeyV)
+	tt.Frame()
+	if a.login.open {
+		t.Fatal("Ctrl+V liked the song")
+	}
+	tt.Key(ui.Cmd|ui.Alt, ui.KeyV)
+	tt.Frame()
+	if !a.login.open {
+		t.Error("liking, unsigned in, asks to sign in: it didn't")
 	}
 }

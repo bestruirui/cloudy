@@ -98,6 +98,8 @@ func (a *app) shortcuts(c *ui.Context) {
 	c.OnShortcut(0, ui.KeyForward, a.goForward)
 	c.OnShortcut(ui.Cmd, ui.KeyBracketLeft, a.back)
 	c.OnShortcut(ui.Cmd, ui.KeyBracketRight, a.goForward)
+	// As the global key, for when those are off.
+	c.OnShortcut(ui.Cmd|ui.Alt, ui.KeyV, a.likeCurrent)
 	c.OnShortcut(ui.Cmd, ui.KeyF, func() {
 		a.nowPlaying = false
 		a.searchBox.Focus(c)
@@ -202,19 +204,19 @@ func (a *app) sidebar(c *ui.Context) {
 
 		nav := ui.Box(c.Key("nav-box")).Grow(1).MinHeight(0).Margin(0, -6)
 		nav.Children(func() {
-		ui.Scroll(c.Key("nav")).TrackScroll(&a.navScroll).Fill().Padding(0, 6).Gap(4).Children(func() {
-			a.navItem(c, iconHome, "为你推荐", route{page: pageHome})
-			a.navItem(c, iconDaily, "每日推荐", route{page: pageDaily})
-			a.navItem(c, iconRadio, "私人 FM", route{page: pageFM})
-			a.navItem(c, iconCharts, "排行榜", route{page: pageCharts})
-			a.navItem(c, iconPodcast, "播客", route{page: pagePodcasts})
-			if a.searched.query != "" {
-				a.navItem(c, iconSearch, "搜索结果", a.searched)
-			}
-			a.myPlaylists(c, "我的歌单", a.mine, true, &a.mineCollapsed)
-			a.myPlaylists(c, "收藏的歌单", a.saved, false, &a.savedCollapsed)
-		})
-		a.scrollFades(c, &a.navScroll)
+			ui.Scroll(c.Key("nav")).TrackScroll(&a.navScroll).Fill().Padding(0, 6).Gap(4).Children(func() {
+				a.navItem(c, iconHome, "为你推荐", route{page: pageHome})
+				a.navItem(c, iconDaily, "每日推荐", route{page: pageDaily})
+				a.navItem(c, iconRadio, "私人 FM", route{page: pageFM})
+				a.navItem(c, iconCharts, "排行榜", route{page: pageCharts})
+				a.navItem(c, iconPodcast, "播客", route{page: pagePodcasts})
+				if a.searched.query != "" {
+					a.navItem(c, iconSearch, "搜索结果", a.searched)
+				}
+				a.myPlaylists(c, "我的歌单", a.mine, true, &a.mineCollapsed)
+				a.myPlaylists(c, "收藏的歌单", a.saved, false, &a.savedCollapsed)
+			})
+			a.scrollFades(c, &a.navScroll)
 		})
 
 		// What plays, as a card at the foot of the sidebar, over who listens.

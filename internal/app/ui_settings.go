@@ -254,6 +254,9 @@ func (a *app) settingsBody(c *ui.Context) {
 			if a.playKey != "" {
 				keys = "在其他软件里也能用：" + a.playKey + " 播放暂停，Ctrl+Alt+←→ 切歌，Ctrl+Alt+↑↓ 调音量"
 			}
+			if a.likeKey != "" {
+				keys += "，" + a.likeKey + " 喜欢"
+			}
 			if a.keysTaken > 0 {
 				keys += fmt.Sprintf("；有 %d 组被其他软件占用", a.keysTaken)
 			}
@@ -298,6 +301,45 @@ func (a *app) settingsBody(c *ui.Context) {
 			row("清除缓存", "删除保存在本机的全部歌曲", func() {
 				if ui.Button(c.Key("clear-cache"), "清除").Disabled(a.cacheUsed <= 0).Clicked() {
 					a.clearCache()
+				}
+			})
+		})
+
+		group("悬浮窗口", func() {
+			row("桌面歌词", "在其他窗口之上显示当前歌词；鼠标移上去可以拖动、调字号和锁定", func() {
+				if ui.Switch(c.Key("desk-lyrics"), &s.DeskLyrics).Label("桌面歌词").Changed() {
+					a.applyDeskLyrics()
+					a.changed()
+				}
+			})
+			row("桌面歌词样式", "也可以把鼠标移到歌词上点“样式”切换", func() {
+				labels := make([]string, len(deskStyles))
+				chosen := deskStyles[0].label
+				for i, d := range deskStyles {
+					labels[i] = d.label
+					if d.id == s.DeskStyle {
+						chosen = d.label
+					}
+				}
+				if a.paneSelect(c.Key("desk-style"), "桌面歌词样式", &chosen, labels) {
+					for _, d := range deskStyles {
+						if d.label == chosen {
+							s.DeskStyle = d.id
+						}
+					}
+					a.changed()
+				}
+			})
+			row("锁定桌面歌词", "锁定后鼠标会穿过歌词，不会挡住下面的内容", func() {
+				if ui.Switch(c.Key("desk-lock"), &s.DeskLock).Label("锁定桌面歌词").Changed() {
+					a.applyDeskLyrics()
+					a.changed()
+				}
+			})
+			row("迷你窗口", "用一个置顶的小窗口代替主窗口；托盘菜单里也能打开", func() {
+				if ui.Button(c.Key("mini"), "打开").Clicked() {
+					a.settingsOpen = false
+					a.showMini()
 				}
 			})
 		})
