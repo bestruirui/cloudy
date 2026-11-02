@@ -298,6 +298,15 @@ func (a *app) playlistHeader(c *ui.Context, pl *netease.Playlist) {
 				if pillButton(c.Key("shuffle"), iconShuffle, "随机播放", p.hover.Over(p.bg), p.text).Clicked() {
 					a.playList(pl.Tracks, true)
 				}
+				if a.savable(pl) {
+					icon, label := iconPlus, "收藏"
+					if a.isSaved(pl) {
+						icon, label = iconCheck, "已收藏"
+					}
+					if pillButton(c.Key("save"), icon, label, p.hover.Over(p.bg), p.text).Clicked() {
+						a.toggleSaved(*pl)
+					}
+				}
 				if mine := a.editable(pl.ID); mine != nil {
 					more := iconButton(c.Key("more"), iconMore, 18, p.muted, "更多")
 					if more.Clicked() {

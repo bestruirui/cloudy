@@ -328,7 +328,7 @@ func (a *app) menuItem(c *ui.Context, icon *ui.SVG, label, shortcut string) ui.E
 
 // myPlaylists lists the listener's playlists under a header that opens
 // and closes them: those they made, if mine, with a button to make one
-// and a menu to rename them.
+// and a menu to rename them, or else with a menu to unsave them.
 func (a *app) myPlaylists(c *ui.Context, title string, lists []netease.Playlist, mine bool, collapsed *bool) {
 	if len(lists) == 0 {
 		return
@@ -382,8 +382,13 @@ func (a *app) playlistRows(c *ui.Context, lists []netease.Playlist, mine bool) {
 			a.cover(c, pl.Cover(), 80, 22, 5)
 			ui.Text(c, pl.Name).FontSize(13).SingleLine().Shrink(1).MinWidth(0)
 		})
-		if mine && pl.SpecialType != 5 {
+		switch {
+		case mine && pl.SpecialType != 5:
 			a.contextMenu(b, false, func() [][]menuAction { return a.playlistMenu(pl) }, nil)
+		case !mine:
+			a.contextMenu(b, false, func() [][]menuAction {
+				return [][]menuAction{{{label: "取消收藏", do: func() { a.toggleSaved(*pl) }}}}
+			}, nil)
 		}
 		if b.Clicked() {
 			a.open(route{page: pagePlaylist, id: pl.ID})
