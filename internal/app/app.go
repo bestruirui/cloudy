@@ -94,6 +94,7 @@ type app struct {
 
 	query       string
 	searchBox   ui.Handle
+	filterBox   ui.Handle             // the search among a playlist's songs
 	searches    map[route]*searchData // the results of each search, by its page
 	searched    route                 // the search last shown, which the sidebar goes back to
 	suggestions suggestState          // what the search field's query may be after
@@ -127,19 +128,57 @@ type app struct {
 	underTop, underBottom bool
 	barScrub              scrubState
 	npScrub               scrubState
-	backdropCache         backdropCache // the backdrop of Now Playing, as last painted
-	npArt                 *artwork      // the cover whose colors Now Playing shows
-	npCoverState          coverState    // the cover of Now Playing, as it is tilted and flicked
-	wallState             wallState     // the wall of the queue's covers, as it is dragged
-	quiet                 quietState    // the quiet parts of the song playing, for its hot comments
-	captions              captionState  // the episode playing's captions, and the model that writes them
+	glowColor             ui.Color         // the color of Now Playing's glow, from the cover's
+	menu                  paneMenu         // the menu open, if one is (ui_pane.go)
+	npPill                ui.Rect          // where the tab chosen is, in the row of tabs
+	barBox                ui.Rect          // where the player bar is, which Now Playing grows from
+	barSpot, npSpot       flightSpot       // what stays as it grows, in the bar and in the view
+	npK                   float32          // how far Now Playing has opened, from 0 to 1
+	npCoverScale          float32          // how its cover stands, which the flight lands at
+	motion                int              // how much the app moves, in this frame
+	playFlies             func(ui.Element) // what hides the play button being built as it flies
+	pageDir               int              // the way the page last changed: 1 in, -1 back, 0 across
+	feedback              feedbackState    // the message being written, in the settings
+	splashed              bool             // the record has come in, as the app started
+	splashAt              time.Time        // when it started to
+	keysTaken             int              // how many global keys other apps hold
+	playKey               string           // the global key that plays and pauses
+	sleepTimer            *time.Timer      // pauses the music once the time set is up
+	sleepAt               time.Time        // when
+	sleepMinutes          int              // what the listener chose
+	spin                  discState        // how far the bar's cover has turned
+	npPointer             bool             // the pointer is over Now Playing
+	headAt                ui.Rect          // where the cover of the page's header is
+	cameFrom              cardOrigin       // the card this page was opened from
+	restoreY              float32          // how far to scroll the page coming back
+	fontsAsked            bool             // the fonts that come as files were asked for
+	plView                plView           // how the playlist open is searched and sorted
+	headGone              float32          // how far the page's header has scrolled away
+	rowsRoute             route            // the page whose list last came in
+	rowsAt                time.Time        // when it started to
+	sideColor             ui.Color         // what the sidebar shows, as it eases
+	sideEdge              ui.Color         // what its list fades to, under its edges
+	washBmp, washWas      *ui.Bitmap       // the cover under the sidebar, and the one it replaces
+	flight                coverFlight      // a cover on its way to the page it opens
+	heldRoute             route            // the page opened from a card
+	heldURL               string           // and the cover the card gave it
+	playSpot              ui.Rect          // where the play button last built is
+	backdropCache         backdropCache    // the backdrop of Now Playing, as last painted
+	npArt                 *artwork         // the cover whose colors Now Playing shows
+	npCoverState          coverState       // the cover of Now Playing, as it is tilted and flicked
+	wallState             wallState        // the wall of the queue's covers, as it is dragged
+	quiet                 quietState       // the quiet parts of the song playing, for its hot comments
+	captions              captionState     // the episode playing's captions, and the model that writes them
 	sig                   playerSig
 	quitting              bool
 
-	settings    settings
-	settingsWin *mygo.Window
-	cacheUsed   int64 // the bytes the song cache takes, -1 until measured
-	updates     bool  // the update plugin is used (useUpdater)
+	settings      settings
+	settingsOpen  bool
+	settingsDirty bool            // a slider moved, and the settings are not kept yet
+	cacheUsed     int64           // the bytes the song cache takes, -1 until measured
+	updates       bool            // the update plugin is used (useUpdater)
+	fontList      []uiFont        // the fonts on offer here (fontChoices)
+	fontsLoaded   map[string]bool // the fonts of files registered, by id (loadFont)
 
 	restored     bool   // playback picked up where it was left
 	savedSession string // the session as last kept
@@ -199,10 +238,18 @@ func Run() error {
 		cacheUsed:  -1,
 	}
 	moveOldData()
+	copyFormerData()
+	mygo.App.SetLanguages(appLanguage)
 	a.useUpdater()
 	mygo.App.WhenReady(func() {
 		a.settings = loadSettings()
 		a.settings.applyAppearance()
+		a.loadFont()
+		// The app is a modified build: what an update installs would take the
+		// changes away, so it asks, whatever was set before.
+		if a.updates {
+			setUpdateDownloads(false)
+		}
 		a.npPane = a.lyricsPaneChosen()
 		// Before the window: on Windows it lays out its content as it is
 		// made, and the view asks the player what plays.
@@ -236,6 +283,7 @@ func Run() error {
 		})
 		a.setMenu()
 		a.boot()
+		a.applyGlobalKeys()
 		// The notch player is macOS's, over its menu bar: elsewhere it would
 		// hang at the top of the screen as a black box.
 		if runtime.GOOS == "darwin" {

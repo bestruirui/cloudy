@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/ui"
 
 	"netease-music-mygo/internal/netease"
@@ -284,9 +285,9 @@ func drawBars(p *ui.Painter, r ui.Rect, st *barState, n int, color ui.Color, min
 // width in a small gray track, divided by hairlines, the one chosen raised
 // on a capsule that slides to the next as it changes. It reports whether
 // the user chose another.
-func segmented(c *ui.Context, selected *int, labels ...string) bool {
+func (a *app) segmented(c *ui.Context, selected *int, labels ...string) bool {
 	t := c.Theme()
-	const height, inset, radius = 24, 2, 6
+	const height, inset, radius = 28, 2, 14
 	width := float32(0)
 	for _, l := range labels {
 		w, _ := c.MeasureText(0, ui.Span{Text: l, Size: 13})
@@ -312,13 +313,17 @@ func segmented(c *ui.Context, selected *int, labels ...string) bool {
 		}
 		pill := ui.Rect{X: r.X + inset + at*width, Y: r.Y + inset, W: width, H: r.H - 2*inset}
 		if !dark {
-			p.Shadow(pill, radius-1, 0, 0.5, 1, 0, ui.RGBA(0, 0, 0, 0.2))
-			p.Shadow(pill, radius-1, 0, 1, 3, 0, ui.RGBA(0, 0, 0, 0.06))
+			p.Shadow(pill, radius-inset, 0, 0.5, 1, 0, ui.RGBA(0, 0, 0, 0.2))
+			p.Shadow(pill, radius-inset, 0, 1, 3, 0, ui.RGBA(0, 0, 0, 0.06))
 		}
-		p.Fill(pill, capsule, radius-1)
+		if a.settings.GlassPanels {
+			glass.Paint(p, pill, radius-inset, glass.Glass{Style: glass.Clear, Tint: capsule})
+		} else {
+			p.Fill(pill, capsule, radius-inset)
+		}
 	}).Children(func() {
 		for i, l := range labels {
-			seg := parts.Segment(i).Width(width).Height(height - 2*inset).Center().Radius(radius - 1)
+			seg := parts.Segment(i).Width(width).Height(height - 2*inset).Center().Radius(radius - inset)
 			if seg.Pressed() && i != *selected {
 				seg.Background(divider)
 			}

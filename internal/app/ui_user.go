@@ -185,7 +185,7 @@ func (a *app) userPage(c *ui.Context) {
 // userRow is a user in a list, opening their page.
 func (a *app) userRow(c *ui.Context, u *netease.User) {
 	p := a.pal
-	row := ui.ButtonBase(c).Padding(10, 12).Gap(14).Radius(10).AlignItems(ui.Center).FocusRing(false).Label(u.Nickname)
+	row := ui.ButtonBase(c).Padding(10, 12).Gap(14).Radius(14).AlignItems(ui.Center).FocusRing(false).Label(u.Nickname)
 	if row.Hovered() {
 		row.Background(p.hover)
 	}

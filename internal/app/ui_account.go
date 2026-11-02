@@ -162,11 +162,9 @@ func (a *app) signOut() {
 func (a *app) loginDialog(c *ui.Context) {
 	p := a.pal
 	l := &a.login
-	ui.DialogBase(c.Key("login"), &l.open, func(backdrop, panel ui.Element) {
-		backdrop.Background(ui.RGBA(0, 0, 0, 0.35))
-		panel.Width(340).Padding(28, 28, 26, 28).Radius(22).Gap(6).AlignItems(ui.Center).
-			Background(p.bg).Border(1, p.hairline).Shadow(0, 24, 60, -12, ui.RGBA(0, 0, 0, 0.4)).
-			Transition(ui.ElementTransition{Animation: &ui.Snappy, Enter: &ui.Motion{Scale: 0.94}, Exit: &ui.Motion{Scale: 0.96}})
+	a.dialog(c, "login", 0.35, &l.open, func(panel ui.Element) {
+		a.pane(panel, 26, false)
+		panel.Width(340).Padding(28, 28, 26, 28).Gap(6).AlignItems(ui.Center)
 		title, sub := "扫码登录", "打开网易云音乐 App，扫一扫登录"
 		switch {
 		case l.finished:
@@ -181,7 +179,7 @@ func (a *app) loginDialog(c *ui.Context) {
 		ui.Text(c, title).FontSize(20).FontWeight(700)
 		ui.Text(c, sub).FontSize(13).TextColor(p.muted).TextAlign(ui.Center).Margin(0, 0, 14, 0)
 
-		ui.Box(c).Size(212, 212).Radius(16).Background(ui.RGB(255, 255, 255)).Border(1, p.hairline).Children(func() {
+		ui.Box(c).Size(212, 212).Radius(14).Background(ui.RGB(255, 255, 255)).Border(1, p.hairline).Children(func() {
 			if l.code != nil {
 				code := l.code
 				opacity := float32(1)
@@ -247,7 +245,7 @@ func (a *app) profileName() string {
 // sign in.
 func (a *app) accountRow(c *ui.Context) {
 	p := a.pal
-	b := ui.ButtonBase(c.Key("account")).Height(40).PaddingX(8).Gap(10).Radius(10).AlignItems(ui.Center).Justify(ui.Start).FocusRing(false)
+	b := ui.ButtonBase(c.Key("account")).Height(40).PaddingX(8).Gap(10).Radius(8).AlignItems(ui.Center).Justify(ui.Start).FocusRing(false)
 	if b.Hovered() || a.accountOpen && a.profile != nil {
 		b.Background(p.hover)
 	}
@@ -282,8 +280,8 @@ func (a *app) accountRow(c *ui.Context) {
 func (a *app) accountMenu(c *ui.Context, row ui.Element) {
 	pop := popoverColors(a.pal.dark)
 	ui.PopoverBase(c.Key("account-menu"), row, &a.accountOpen, func(panel ui.Element) {
-		panel.AttachTo(row, ui.AnchorTopStart, ui.AnchorBottomStart).Margin(0, 0, 6, 0).Padding(5).Gap(1).
-			Radius(12).Background(pop.fill).Border(0.5, pop.edge).Shadow(0, 8, 24, -4, ui.RGBA(0, 0, 0, 0.2)).
+		a.pane(panel, 20, false)
+		panel.AttachTo(row, ui.AnchorTopStart, ui.AnchorBottomStart).Margin(0, 0, 6, 0).Padding(6).Gap(1).
 			Role(ui.RoleMenu).FocusGroup(ui.Vertical).Label("账户").TransformOrigin(0.5, 1).
 			Transition(ui.ElementTransition{Animation: &ui.Snappy, Enter: &ui.Motion{Scale: 0.96, Y: 4}, Exit: &ui.Motion{Scale: 0.98}})
 		if w := row.Bounds().W; w > 0 {
@@ -313,7 +311,7 @@ func (a *app) accountMenu(c *ui.Context, row ui.Element) {
 // that does the same, if any.
 func (a *app) menuItem(c *ui.Context, icon *ui.SVG, label, shortcut string) ui.Element {
 	p := a.pal
-	b := ui.ButtonBase(c.Key(label)).Role(ui.RoleMenuItem).Label(label).Height(30).PaddingX(8).Gap(9).Radius(7).
+	b := ui.ButtonBase(c.Key(label)).Role(ui.RoleMenuItem).Label(label).Height(30).PaddingX(8).Gap(9).Radius(14).
 		AlignItems(ui.Center).Justify(ui.Start).FocusRing(false)
 	if b.Hovered() || b.FocusVisible() {
 		b.Background(p.press)
@@ -336,8 +334,8 @@ func (a *app) myPlaylists(c *ui.Context, title string, lists []netease.Playlist,
 		return
 	}
 	p := a.pal
-	ui.Row(c.Key(title)).AlignItems(ui.Center).Margin(18, 4, 6, 6).Children(func() {
-		b := ui.ButtonBase(c.Key("toggle")).Grow(1).Height(26).PaddingX(4).Gap(6).Radius(6).
+	ui.Row(c.Key(title)).AlignItems(ui.Center).Margin(18, 0, 6, 0).Children(func() {
+		b := ui.ButtonBase(c.Key("toggle")).Grow(1).Height(28).PaddingX(10).Gap(6).Radius(8).
 			AlignItems(ui.Center).Justify(ui.Start).Role(ui.RoleDisclosure).Label(title)
 		if b.Clicked() {
 			*collapsed = !*collapsed
@@ -348,43 +346,44 @@ func (a *app) myPlaylists(c *ui.Context, title string, lists []netease.Playlist,
 		}
 		b.Children(func() {
 			ui.Text(c, title).FontSize(11.5).FontWeight(600).TextColor(p.faint).Grow(1)
-			arrow := iconDown
+			turn := float32(0)
 			if *collapsed {
-				arrow = iconForward
+				turn = -90
 			}
-			ui.Icon(c, arrow).Size(12, 12).TextColor(p.faint)
+			ui.Icon(c, iconDown).Size(12, 12).TextColor(p.faint).Rotate(b.AnimateTo("turn", turn, motionFast))
 		})
-		if mine && iconButton(c.Key("new"), iconPlus, 13, p.faint, "新建歌单").Size(26, 26).Radius(6).Clicked() {
+		if mine && iconButton(c.Key("new"), iconPlus, 13, p.faint, "新建歌单").Size(26, 26).Radius(8).Clicked() {
 			a.newPlaylist(nil)
 		}
 	})
-	if *collapsed {
-		return
+	if !*collapsed {
+		rows := ui.Column(c.Key(title + "-rows")).Gap(4)
+		if a.motion > motionOff {
+			rows.Transition(ui.ElementTransition{Animation: &motionPane, Enter: &ui.Motion{Collapse: true}, Exit: &ui.Motion{Collapse: true}})
+		}
+		rows.Children(func() { a.playlistRows(c, lists, mine) })
 	}
+}
+
+// playlistRows lists playlists in the sidebar.
+func (a *app) playlistRows(c *ui.Context, lists []netease.Playlist, mine bool) {
+	p := a.pal
 	for i := range lists {
 		pl := &lists[i]
 		selected := a.route.page == pagePlaylist && a.route.id == pl.ID && !a.nowPlaying
 		b := ui.ButtonBase(c.Key(pl.ID)).Height(34).PaddingX(8).Gap(10).Radius(8).AlignItems(ui.Center).Justify(ui.Start).FocusRing(false).Label(pl.Name)
-		switch {
-		case selected:
-			b.Background(p.press)
-		case b.Hovered():
+		if b.Hovered() && !selected {
 			b.Background(p.hover)
 		}
 		b.Children(func() {
+			if selected {
+				a.navPill(c)
+			}
 			a.cover(c, pl.Cover(), 80, 22, 5)
 			ui.Text(c, pl.Name).FontSize(13).SingleLine().Shrink(1).MinWidth(0)
 		})
 		if mine && pl.SpecialType != 5 {
-			b.ContextMenu(func(m *ui.Menu) {
-				if m.Item("重命名…").Chosen() {
-					a.startRename(pl)
-				}
-				m.Separator()
-				if m.Item("删除歌单…").Chosen() {
-					a.confirmDelete(pl)
-				}
-			})
+			a.contextMenu(b, false, func() [][]menuAction { return a.playlistMenu(pl) }, nil)
 		}
 		if b.Clicked() {
 			a.open(route{page: pagePlaylist, id: pl.ID})

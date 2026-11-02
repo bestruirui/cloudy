@@ -1,8 +1,27 @@
-# 网易云音乐 · MyGo
+# Cloud-nya
 
-用 Go 和 [MyGo](https://github.com/egoist/mygo) 写的第三方网易云音乐桌面客户端，原生界面，无 WebView。
+<img src="resources/icon.png" width="120" alt="Cloud-nya 图标">
 
-## 功能
+nya 维护的第三方网易云音乐桌面客户端，基于 [egoist/mygo-cloudmusic](https://github.com/egoist/mygo-cloudmusic) 修改。用 Go 和 [MyGo](https://github.com/egoist/mygo) 编写，原生界面，无 WebView。
+
+## 这个 fork 改了什么
+
+- 液态玻璃胶囊播放栏，透明度和折射可调，封面像黑胶一样缓慢旋转
+- 播放页微光：唱到的歌词、进度条和音量带柔和的光
+- 全局 UI 统一：黑玻璃菜单、玻璃设置面板，圆角收成 4 档，侧栏带封面色调
+- 完整的动画：播放页从播放栏展开，封面在卡片和详情之间飞入飞回，页面、弹层和列表都有过渡
+- 歌单页改版：封面氛围背景、吸顶页头、列表内搜索与排序、封面堆叠
+- 全局快捷键、定时关闭、按歌曲校准歌词时间、调节歌词字号
+- 多种中文字体，列表里直接预览
+- 设置里可以直接发送反馈
+
+所有动画和玻璃效果都能在 设置 → 视觉效果 里调低或关闭。
+
+## 下载
+
+到 [Releases](https://github.com/nya-owo/mygo-nya/releases) 下载。安装包没有代码签名，Windows 可能提示“已保护你的电脑”，点“更多信息”后选“仍要运行”。
+
+## 原项目的功能
 
 - 扫码登录，登录态保存在系统凭据存储中
 - 每日推荐、推荐歌单、排行榜、我的歌单
@@ -31,6 +50,7 @@ go test ./...        # 运行测试
 
 ## 致谢
 
+- [egoist/mygo-cloudmusic](https://github.com/egoist/mygo-cloudmusic)：本项目修改自它，原作者 egoist
 - [MyGo](https://github.com/egoist/mygo)：原生 UI 与应用框架
 - [NeteaseCloudMusicApi](https://github.com/Binaryify/NeteaseCloudMusicApi)：eapi 加密与登录流程的参考
 - [folia-major](https://github.com/chthollyphile/folia-major)：歌词动画效果的参考

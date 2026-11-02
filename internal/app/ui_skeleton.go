@@ -112,7 +112,7 @@ func (a *app) chartCardsSkeleton(c *ui.Context, s shimmer) {
 	ui.Grid(c).Columns(cols).Gap(20).Children(func() {
 		for i := range 4 {
 			ui.Row(c.Key(i)).Gap(14).Padding(12).Radius(14).AlignItems(ui.Center).Background(a.pal.hover).Children(func() {
-				s.bone(c, 9).Size(84, 84)
+				s.bone(c, 8).Size(84, 84)
 				ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(5).Children(func() {
 					s.text(c, 14, 1.3).WidthPercent(46)
 					for j := range 3 {
@@ -130,7 +130,7 @@ func (a *app) playlistCardsSkeleton(c *ui.Context, s shimmer, n int, min float32
 	ui.Grid(c).Columns(a.columns(c, min)).GapX(20).GapY(28).Children(func() {
 		for i := range n {
 			ui.Column(c.Key(i)).Gap(10).AlignItems(ui.Stretch).Children(func() {
-				s.bone(c, 10).AspectRatio(1)
+				s.bone(c, 14).AspectRatio(1)
 				ui.Column(c).Gap(0).Children(func() {
 					s.text(c, 13, 1.35).WidthPercent(92)
 					s.text(c, 13, 1.35).WidthPercent(boneWidth(i))
@@ -157,7 +157,7 @@ func (a *app) trackSkeleton(c *ui.Context, s shimmer, covers bool, header func(c
 			ui.Row(c.Key(i)).Height(54).Shrink(0).PaddingX(12).Gap(14).AlignItems(ui.Center).Children(func() {
 				ui.Box(c).Width(26).Center().Children(func() { s.text(c, 13, 1.3).Width(12) })
 				if covers {
-					s.bone(c, 6).Size(38, 38)
+					s.bone(c, 8).Size(38, 38)
 				}
 				ui.Column(c).Grow(3).Basis(0).MinWidth(0).Gap(3).Children(func() {
 					s.text(c, 14, 1.3).WidthPercent(boneWidth(i) * 0.8)
@@ -177,8 +177,17 @@ func (a *app) trackSkeleton(c *ui.Context, s shimmer, covers bool, header func(c
 
 // playlistHeaderSkeleton is playlistHeader while the playlist loads.
 func (a *app) playlistHeaderSkeleton(c *ui.Context, s shimmer) {
-	ui.Row(c).Gap(28).AlignItems(ui.End).Padding(0, 0, 26, 0).Children(func() {
-		s.bone(c, 14).Size(212, 212)
+	head := ui.Row(c).Gap(28).AlignItems(ui.End).Padding(0, 0, 68, 0)
+	url := a.heldCover()
+	head.Children(func() {
+		// The card opened gave its cover: it needs no skeleton.
+		if url != "" {
+			cover := ui.Box(c).Size(212, 212).Radius(14).Shadow(0, 18, 40, -10, a.pal.cardShade).AlignSelf(ui.Start)
+			a.landCover(c, cover)
+			cover.Children(func() { a.pageCover(c, url) })
+		} else {
+			s.bone(c, 14).Size(212, 212)
+		}
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(8).Children(func() {
 			s.text(c, 12, 1.3).Width(36)
 			s.text(c, 30, 1.2).WidthPercent(48)

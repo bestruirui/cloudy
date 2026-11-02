@@ -339,7 +339,7 @@ func (n *notch) view(c *ui.Context) {
 	a := n.a
 	pl := a.pl
 	tr := pl.Current()
-	c.Root().Background(ui.Transparent)
+	c.Root().Background(ui.Transparent).Font(a.fontFamily())
 
 	tw, th := n.target()
 	spring := ui.Animation{Spring: ui.SpringOptions{Duration: 520 * time.Millisecond, Bounce: 0.28}}

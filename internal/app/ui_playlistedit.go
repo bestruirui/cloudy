@@ -244,36 +244,28 @@ func (a *app) removeFrom(pid int64, tr *netease.Track) {
 	}()
 }
 
-// playlistItems are the items of a song's menu that put it in the
+// playlistActions are the actions of a song's menu that put it in the
 // listener's playlists, or take it out of pid, the one it is listed in, if
 // set.
-func (a *app) playlistItems(m *ui.Menu, tr *netease.Track, pid int64) {
+func (a *app) playlistActions(tr *netease.Track, pid int64) []menuAction {
 	if a.profile == nil {
-		return
+		return nil
 	}
-	m.Separator()
-	m.Submenu("添加到歌单", func(m *ui.Menu) {
-		if m.Item("新建歌单…").Chosen() {
-			a.newPlaylist(tr)
+	var to []menuAction
+	for i := range a.mine {
+		if pl := &a.mine[i]; pl.SpecialType != 5 && pl.ID != pid {
+			to = append(to, menuAction{label: pl.Name, icon: iconNote, do: func() { a.addTo(pl.ID, tr) }})
 		}
-		var to []*netease.Playlist
-		for i := range a.mine {
-			if pl := &a.mine[i]; pl.SpecialType != 5 && pl.ID != pid {
-				to = append(to, pl)
-			}
-		}
-		if len(to) > 0 {
-			m.Separator()
-		}
-		for _, pl := range to {
-			if m.Item(pl.Name).Chosen() {
-				a.addTo(pl.ID, tr)
-			}
-		}
-	})
-	if a.editable(pid) != nil && m.Item("从歌单中移除").Chosen() {
-		a.removeFrom(pid, tr)
 	}
+	sub := [][]menuAction{{{label: "新建歌单…", icon: iconPlus, do: func() { a.newPlaylist(tr) }}}}
+	if len(to) > 0 {
+		sub = append(sub, to)
+	}
+	acts := []menuAction{{label: "添加到歌单", icon: iconPlus, sub: sub}}
+	if a.editable(pid) != nil {
+		acts = append(acts, menuAction{label: "从歌单中移除", icon: iconTrash, do: func() { a.removeFrom(pid, tr) }})
+	}
+	return acts
 }
 
 // playlistNameDialog asks for the name of a playlist to make, or a new
@@ -281,11 +273,9 @@ func (a *app) playlistItems(m *ui.Menu, tr *netease.Track, pid int64) {
 func (a *app) playlistNameDialog(c *ui.Context) {
 	p := a.pal
 	d := &a.naming
-	ui.DialogBase(c.Key("playlist-name"), &d.open, func(backdrop, panel ui.Element) {
-		backdrop.Background(ui.RGBA(0, 0, 0, 0.35))
-		panel.Width(360).Padding(24).Radius(18).Gap(16).
-			Background(p.bg).Border(1, p.hairline).Shadow(0, 24, 60, -12, ui.RGBA(0, 0, 0, 0.4)).
-			Transition(ui.ElementTransition{Animation: &ui.Snappy, Enter: &ui.Motion{Scale: 0.94}, Exit: &ui.Motion{Scale: 0.96}})
+	a.dialog(c, "playlist-name", 0.35, &d.open, func(panel ui.Element) {
+		a.pane(panel, 20, false)
+		panel.Width(360).Padding(24).Gap(16)
 		title, action := "新建歌单", "创建"
 		if d.rename != 0 {
 			title, action = "重命名歌单", "保存"
@@ -318,11 +308,9 @@ func (a *app) playlistNameDialog(c *ui.Context) {
 func (a *app) deletePlaylistDialog(c *ui.Context) {
 	p := a.pal
 	d := &a.deleting
-	ui.DialogBase(c.Key("playlist-delete"), &d.open, func(backdrop, panel ui.Element) {
-		backdrop.Background(ui.RGBA(0, 0, 0, 0.35))
-		panel.Width(360).Padding(24).Radius(18).Gap(8).
-			Background(p.bg).Border(1, p.hairline).Shadow(0, 24, 60, -12, ui.RGBA(0, 0, 0, 0.4)).
-			Transition(ui.ElementTransition{Animation: &ui.Snappy, Enter: &ui.Motion{Scale: 0.94}, Exit: &ui.Motion{Scale: 0.96}})
+	a.dialog(c, "playlist-delete", 0.35, &d.open, func(panel ui.Element) {
+		a.pane(panel, 20, false)
+		panel.Width(360).Padding(24).Gap(8)
 		ui.Text(c, "删除歌单").FontSize(17).FontWeight(700)
 		ui.Text(c, "确定删除歌单“"+d.name+"”吗？删除后无法恢复。").FontSize(13).TextColor(p.muted).LineHeight(1.45)
 		ui.Row(c).Gap(10).Justify(ui.End).Margin(8, 0, 0, 0).Children(func() {
@@ -334,4 +322,12 @@ func (a *app) deletePlaylistDialog(c *ui.Context) {
 			}
 		})
 	})
+}
+
+// playlistMenu is what can be done with a playlist of the listener's.
+func (a *app) playlistMenu(pl *netease.Playlist) [][]menuAction {
+	return [][]menuAction{
+		{{label: "重命名…", do: func() { a.startRename(pl) }}},
+		{{label: "删除歌单…", do: func() { a.confirmDelete(pl) }}},
+	}
 }

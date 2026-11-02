@@ -29,15 +29,16 @@ func fakeUpdater(checks, downloads *bool, checked *int) func() {
 	}
 }
 
-// Turning off checking for updates turns it off in the updater, and
-// installing updates without asking can't be turned on without it.
+// Turning off the reminder turns checking off in the updater, and nothing in
+// the settings turns on installing without asking: the app is a modified
+// build, which an update would take the changes out of.
 func TestTurnOffUpdateChecks(t *testing.T) {
 	checks, downloads, checked := true, false, 0
 	defer fakeUpdater(&checks, &downloads, &checked)()
 	a := newTestApp()
 	a.settings = defaultSettings()
 	a.updates = true
-	tt := ui.NewTester(a.settingsView, 560, 2000)
+	tt := ui.NewTester(a.settingsBody, 560, 2000)
 	tt.Frame()
 	// The row's title is labelled as its switch is: click the switch, at
 	// the row's end.
@@ -48,23 +49,15 @@ func TestTurnOffUpdateChecks(t *testing.T) {
 		if !ok1 || !ok2 {
 			t.Fatalf("no row %s", title)
 		}
-		tt.ClickAt(560-28-16-12, (top.Y+bottom.Y+bottom.H)/2)
+		tt.ClickAt(560-24-16-12, (top.Y+bottom.Y+bottom.H)/2)
 		tt.Frame()
 	}
-	toggle("自动检查更新", "每天检查一次是否有新版本")
+	toggle("提醒新版本", "每天检查一次是否有新版本，只提醒，不会自动安装")
 	if checks {
 		t.Fatal("checks for updates still")
 	}
-	toggle("自动下载并安装", "在后台下载新版本，下次打开时生效")
-	if downloads {
-		t.Fatal("turned on installing updates without checking for them")
-	}
-	// It does turn on while the updater checks.
-	checks = true
-	tt.Frame()
-	toggle("自动下载并安装", "在后台下载新版本，下次打开时生效")
-	if !downloads {
-		t.Fatal("didn't turn on installing updates")
+	if tt.HasText("自动下载并安装") {
+		t.Error("the settings offer installing updates without asking")
 	}
 }
 
@@ -76,7 +69,7 @@ func TestCheckForUpdatesFromSettings(t *testing.T) {
 	a.settings = defaultSettings()
 	a.updates = true
 	a.profile = &netease.Profile{UserID: 1}
-	tt := ui.NewTester(a.settingsView, 560, 2000)
+	tt := ui.NewTester(a.settingsBody, 560, 2600)
 	tt.Frame()
 	if err := tt.Click("检查更新"); err != nil {
 		t.Fatal(err)

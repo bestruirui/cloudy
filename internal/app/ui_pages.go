@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/ui"
 
 	"netease-music-mygo/internal/netease"
@@ -140,18 +141,21 @@ func (a *app) coverCard(c *ui.Context, name, cover string, playCount float64, su
 	// tallest, whose name or line under it takes two lines.
 	card := ui.ButtonBase(c).Column().Gap(10).AlignItems(ui.Stretch).Justify(ui.Start).FocusRing(false).Label(name)
 	hovered := card.Hovered()
+	var artAt ui.Rect
 	card.Children(func() {
-		art := ui.Box(c).AspectRatio(1).Radius(10)
+		art := ui.Box(c).AspectRatio(1).Radius(14)
+		artAt = art.Bounds()
+		a.landBack(c, art, cover)
 		lift := ui.Pose{}
 		if hovered {
-			lift = ui.Pose{Y: -3}
+			lift = ui.Pose{Y: -5, Scale: 1.015}
 			art.Shadow(0, 12, 28, -6, p.cardShade)
 		} else {
 			art.Shadow(0, 2, 8, -2, p.cardShade)
 		}
 		art.AnimatePose(lift, ui.Snappy)
 		art.Children(func() {
-			a.coverFill(c, cover, 400, 10)
+			a.coverFill(c, cover, 400, 14)
 			if playCount > 0 {
 				ui.Row(c).Absolute().Top(8).Right(8).Padding(2, 7).Radius(999).Gap(3).AlignItems(ui.Center).
 					Background(ui.RGBA(0, 0, 0, 0.35)).TextColor(ui.RGB(255, 255, 255)).Children(func() {
@@ -166,7 +170,11 @@ func (a *app) coverCard(c *ui.Context, name, cover string, playCount float64, su
 			ui.Text(c, sub).FontSize(12).TextColor(p.muted).SingleLine().Margin(-6, 0, 0, 0)
 		}
 	})
-	return card.Clicked()
+	clicked := card.Clicked()
+	if clicked {
+		a.flyFrom(c, cover, artAt, 14)
+	}
+	return clicked
 }
 
 // coverFill fills its parent with a cover, its corners rounded by radius.
@@ -186,8 +194,13 @@ func (a *app) coverFill(c *ui.Context, url string, px int, radius float32) {
 // opening it.
 func (a *app) coverPlayButton(c *ui.Context, shown bool, play func()) {
 	b := ui.ButtonBase(c.Key("play")).Absolute().Bottom(10).Right(10).Size(38, 38).Radius(999).Center().
-		Background(a.pal.accent).TextColor(ui.RGB(255, 255, 255)).Label("播放").FocusRing(false).
+		TextColor(ui.RGB(255, 255, 255)).Label("播放").FocusRing(false).
 		Shadow(0, 4, 12, 0, ui.RGBA(0, 0, 0, 0.3))
+	if a.settings.GlassPanels {
+		b.Material(glass.Glass{Tint: a.pal.accent.Alpha(0.72)})
+	} else {
+		b.Background(a.pal.accent)
+	}
 	pose := ui.Pose{Fade: 1, Scale: 0.8, Y: 6}
 	if shown || b.Hovered() {
 		pose = ui.Pose{Scale: 1}
@@ -212,10 +225,12 @@ func (a *app) chartCard(c *ui.Context, pl *netease.Playlist) {
 		bg = p.press
 	}
 	card.Background(card.AnimateColor("bg", bg, ui.Animation{Duration: 140 * time.Millisecond}))
+	var artAt ui.Rect
 	card.Children(func() {
-		ui.Box(c).Size(84, 84).Radius(9).Shadow(0, 3, 10, -2, p.cardShade).Children(func() {
-			a.coverFill(c, pl.Cover(), 200, 9)
-		})
+		art := ui.Box(c).Size(84, 84).Radius(8).Shadow(0, 3, 10, -2, p.cardShade)
+		artAt = art.Bounds()
+		a.landBack(c, art, pl.Cover())
+		art.Children(func() { a.coverFill(c, pl.Cover(), 200, 8) })
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(5).Children(func() {
 			ui.Row(c).Gap(6).AlignItems(ui.Baseline).Children(func() {
 				ui.Text(c, pl.Name).FontSize(14).FontWeight(700).SingleLine()
@@ -233,6 +248,7 @@ func (a *app) chartCard(c *ui.Context, pl *netease.Playlist) {
 		})
 	})
 	if card.Clicked() {
+		a.flyFrom(c, pl.Cover(), artAt, 8)
 		a.open(route{page: pagePlaylist, id: pl.ID})
 	}
 }
@@ -249,15 +265,14 @@ func (a *app) playlistPage(c *ui.Context) {
 		a.trackSkeleton(c, s, true, func(c *ui.Context) { a.playlistHeaderSkeleton(c, s) })
 		return
 	}
-	a.trackRows(c, pl.Tracks, true, func(c *ui.Context) { a.playlistHeader(c, pl) })
+	a.toolRows(c, pl.Tracks, true, func(c *ui.Context) { a.playlistHeader(c, pl) })
 }
 
 func (a *app) playlistHeader(c *ui.Context, pl *netease.Playlist) {
 	p := a.pal
-	ui.Row(c).Gap(28).AlignItems(ui.End).Padding(0, 0, 26, 0).Children(func() {
-		ui.Box(c).Size(212, 212).Radius(14).Shadow(0, 18, 40, -10, p.cardShade).Children(func() {
-			a.coverFill(c, pl.Cover(), 600, 14)
-		})
+	head := ui.Row(c).Gap(28).AlignItems(ui.End).Padding(0, 0, 26, 0)
+	head.Children(func() {
+		a.headCover(c, pl.Cover())
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(8).Children(func() {
 			kind := "歌单"
 			if pl.UpdateFreq != "" {
@@ -269,38 +284,25 @@ func (a *app) playlistHeader(c *ui.Context, pl *netease.Playlist) {
 			if pl.Creator.Nickname != "" {
 				meta = append(meta, pl.Creator.Nickname)
 			}
-			meta = append(meta, fmt.Sprintf("%d 首", len(pl.Tracks)))
 			if pl.PlayCount > 0 {
 				meta = append(meta, plays(pl.PlayCount)+" 次播放")
 			}
 			ui.Text(c, strings.Join(meta, " · ")).FontSize(13).TextColor(p.muted)
 			if d := strings.TrimSpace(pl.Description); d != "" {
-				ui.Text(c, strings.ReplaceAll(d, "\n", " ")).FontSize(12.5).TextColor(p.muted).MaxLines(2).LineHeight(1.45).Margin(2, 0, 0, 0)
+				a.playlistSays(c, strings.ReplaceAll(d, "\n", " "))
 			}
 			ui.Row(c).Gap(10).Margin(10, 0, 0, 0).Children(func() {
 				if pillButton(c.Key("play"), iconPlay, "播放", p.accent, p.onAccent).Clicked() {
-					if a.pl.Shuffle() {
-						a.pl.ToggleShuffle()
-					}
-					a.pl.PlayQueue(pl.Tracks, firstPlayable(pl.Tracks))
+					a.playList(pl.Tracks, false)
 				}
 				if pillButton(c.Key("shuffle"), iconShuffle, "随机播放", p.hover.Over(p.bg), p.text).Clicked() {
-					if !a.pl.Shuffle() {
-						a.pl.ToggleShuffle()
-					}
-					a.pl.PlayQueue(pl.Tracks, firstPlayable(pl.Tracks))
+					a.playList(pl.Tracks, true)
 				}
 				if mine := a.editable(pl.ID); mine != nil {
 					more := iconButton(c.Key("more"), iconMore, 18, p.muted, "更多")
-					more.Menu(func(m *ui.Menu) {
-						if m.Item("重命名…").Chosen() {
-							a.startRename(mine)
-						}
-						m.Separator()
-						if m.Item("删除歌单…").Chosen() {
-							a.confirmDelete(mine)
-						}
-					})
+					if more.Clicked() {
+						a.menuBelow(more, false, a.playlistMenu(mine), nil)
+					}
 				}
 				switch {
 				case pl.SpecialType != 5:
@@ -319,6 +321,7 @@ func (a *app) playlistHeader(c *ui.Context, pl *netease.Playlist) {
 				}
 			})
 		})
+		a.coverStack(c, pl)
 	})
 }
 
@@ -339,6 +342,7 @@ func (a *app) trackRows(c *ui.Context, tracks []netease.Track, covers bool, head
 	// Rows out of view are not built, their marks with them: a list
 	// scrolled away from its start or end has content under the bars.
 	a.underTop, a.underBottom = true, true
+	a.listOpened(c)
 	rows := len(tracks) + 1 + len(footer)
 	ui.List(c.Key(a.route), &a.trackList, rows, func(i int) {
 		if i == 0 {
@@ -358,8 +362,8 @@ func (a *app) trackRows(c *ui.Context, tracks []netease.Track, covers bool, head
 		i--
 		tr := &tracks[i]
 		playing := cur != nil && cur.ID == tr.ID
-		row := ui.ButtonBase(c.Key(tr.ID)).Height(54).PaddingX(12).Gap(14).Radius(10).AlignItems(ui.Center).FocusRing(false).Label(tr.Name).
-			ContextMenu(a.songItems(tr, pid))
+		row := ui.ButtonBase(c.Key(tr.ID)).Height(54).PaddingX(12).Gap(14).Radius(14).AlignItems(ui.Center).FocusRing(false).Label(tr.Name)
+		a.songContext(row, tr, pid)
 		hovered := row.Hovered()
 		bg := ui.Transparent
 		switch {
@@ -367,10 +371,23 @@ func (a *app) trackRows(c *ui.Context, tracks []netease.Track, covers bool, head
 			bg = p.accent.Alpha(0.09)
 		case hovered:
 			bg = p.hover
+			if tint, ok := a.rowTint(tr.Album.PicURL); ok {
+				bg = tint.Alpha(0.16)
+			}
 		}
-		row.Background(row.AnimateColor("bg", bg, ui.Animation{Duration: 100 * time.Millisecond}))
+		row.Background(row.AnimateColor("bg", bg, ui.Animation{Duration: 140 * time.Millisecond}))
+		if playing {
+			a.rowGlow(row)
+		}
+		shown := a.rowIn(c, i)
+		if shown < 1 {
+			row.Translate(0, 10*(1-shown))
+		}
 		if !tr.Playable() {
-			row.Opacity(0.42)
+			shown *= 0.42
+		}
+		if shown < 1 {
+			row.Opacity(shown)
 		}
 		row.Children(func() {
 			ui.Box(c).Width(26).Center().Children(func() {
@@ -384,14 +401,18 @@ func (a *app) trackRows(c *ui.Context, tracks []netease.Track, covers bool, head
 				}
 			})
 			if covers {
-				a.cover(c, tr.Album.PicURL, 96, 38, 6)
+				grown := float32(1)
+				if hovered {
+					grown = 1.08
+				}
+				a.cover(c, tr.Album.PicURL, 96, 38, 8).AnimatePose(ui.Pose{Scale: grown}, ui.Snappy)
 			}
 			ui.Column(c).Grow(3).Basis(0).MinWidth(0).Gap(3).Children(func() {
 				name := p.text
 				if playing {
 					name = p.accent
 				}
-				spans := []ui.Span{{Text: tr.Name, Weight: 500, Color: name}}
+				spans := []ui.Span{{Text: tr.Name, Weight: 600, Color: name}}
 				if len(tr.Alias) > 0 {
 					spans = append(spans, ui.Span{Text: "（" + tr.Alias[0] + "）", Color: p.faint})
 				}
@@ -407,12 +428,17 @@ func (a *app) trackRows(c *ui.Context, tracks []netease.Track, covers bool, head
 				})
 			})
 			if wide {
-				album := ui.RichText(c).Grow(2).Basis(0).MinWidth(0).FontSize(12.5).TextColor(p.muted).SingleLine()
+				// Faint until the row is looked at: the song is what is read.
+				shade := p.faint
+				if hovered {
+					shade = p.muted
+				}
+				album := ui.RichText(c).Grow(2).Basis(0).MinWidth(0).FontSize(12.5).TextColor(shade).SingleLine()
 				album.Children(func() {
 					if tr.Album.ID == 0 {
 						ui.Text(c, tr.Album.Name)
 					} else {
-						a.link(c.Key("album"), tr.Album.Name, p.muted, p.text, route{page: pageAlbum, id: tr.Album.ID})
+						a.link(c.Key("album"), tr.Album.Name, shade, p.text, route{page: pageAlbum, id: tr.Album.ID})
 					}
 				})
 			}

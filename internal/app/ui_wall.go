@@ -124,7 +124,8 @@ func (a *app) wallPane(c *ui.Context, tr *netease.Track, art *artwork, accent ui
 		})
 	a.wallSong(c, tr, art, top, songH)
 	a.wallBar(c, accent)
-	reveal(npTabsRow(c, w), pointerIn).Children(func() { a.paneTabs(c) })
+	tabs := npTabsRow(c, w)
+	reveal(tabs, pointerIn).Children(func() { a.paneTabs(c, tabs) })
 }
 
 // wallSong is the song playing, over the wall: its cover, which breathes
@@ -137,7 +138,7 @@ func (a *app) wallSong(c *ui.Context, tr *netease.Track, art *artwork, top, h fl
 		// Not Now Playing's cover, which the pointer tilts and flings: here
 		// the wall is what the pointer moves.
 		size := h - 48
-		cov := ui.Box(c.Key(coverKey{tr.ID, 0})).Size(size, size).Radius(16).Shadow(0, 24, 50, -12, ui.RGBA(0, 0, 0, 0.55))
+		cov := ui.Box(c.Key(coverKey{tr.ID, 0})).Size(size, size).Radius(14).Shadow(0, 24, 50, -12, ui.RGBA(0, 0, 0, 0.55))
 		scale := float32(1)
 		if !pl.Playing() {
 			scale = 0.92
@@ -147,7 +148,7 @@ func (a *app) wallSong(c *ui.Context, tr *netease.Track, art *artwork, top, h fl
 		if in < 1 {
 			cov.Background(white.Alpha(0.08))
 		}
-		cov.Children(func() { artImage(c, bitmap(art), 16, in) })
+		cov.Children(func() { artImage(c, bitmap(art), 14, in) })
 		ui.Column(c).Width(440).Shrink(1).MinWidth(0).Gap(4).Children(func() {
 			if r := pl.Radio(); r != "" {
 				a.radioChip(c, r)
@@ -297,6 +298,9 @@ func (a *app) wall(c *ui.Context, y, w, h, top, foot, frost float32) {
 				})
 			}
 		})
+		if hover >= 0 {
+			a.songContext(plane, &queue[hover], 0)
+		}
 		if plane.Clicked() && hover >= 0 && hover != playing && queue[hover].Playable() {
 			pl.Jump(hover)
 		}
@@ -329,8 +333,8 @@ func rowSwayTarget(r int, now time.Time) (float32, time.Duration) {
 // row, scaled to lift: the song playing stands out,
 // ringed, and the one under the pointer says what it is.
 func (a *app) wallTile(c *ui.Context, tr *netease.Track, i int, x float32, playing, hovered bool, lift float32) {
-	tile := ui.Box(c.Key(i)).Absolute().Left(x).Top(0).Size(wallTile, wallTile).Radius(12).
-		Label(tr.Name).ContextMenu(a.songItems(tr, 0))
+	tile := ui.Box(c.Key(i)).Absolute().Left(x).Top(0).Size(wallTile, wallTile).Radius(14).
+		Label(tr.Name)
 	tile.AnimatePose(ui.Pose{Scale: lift}, ui.Animation{Spring: ui.SpringOptions{Duration: 400 * time.Millisecond, Bounce: 0.2}})
 	if !tr.Playable() {
 		tile.Opacity(0.4)
@@ -339,11 +343,11 @@ func (a *app) wallTile(c *ui.Context, tr *netease.Track, i int, x float32, playi
 		tile.Shadow(0, 14, 30, -8, ui.RGBA(0, 0, 0, 0.6))
 	}
 	tile.Children(func() {
-		a.cover(c, tr.Album.PicURL, 240, wallTile, 12)
+		a.cover(c, tr.Album.PicURL, 240, wallTile, 14)
 		if hovered {
 			// Its name and artists over a shade along its foot, on the
 			// cover, so that they move with it.
-			ui.Column(c.Key("caption")).Absolute().Top(0).Left(0).Right(0).Bottom(0).Radius(12).Padding(8).Gap(1).
+			ui.Column(c.Key("caption")).Absolute().Top(0).Left(0).Right(0).Bottom(0).Radius(14).Padding(8).Gap(1).
 				Justify(ui.End).PassThrough().TextColor(white).
 				Gradient(ui.RGBA(0, 0, 0, 0.78), ui.Transparent, 0).
 				Children(func() {
@@ -354,7 +358,7 @@ func (a *app) wallTile(c *ui.Context, tr *netease.Track, i int, x float32, playi
 				})
 		}
 		if playing {
-			ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Radius(12).Border(2, white.Alpha(0.9)).PassThrough()
+			ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Radius(14).Border(2, white.Alpha(0.9)).PassThrough()
 		}
 	})
 }

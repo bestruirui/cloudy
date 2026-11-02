@@ -226,7 +226,7 @@ func (a *app) fmPage(c *ui.Context) {
 				for i, m := range fmModes {
 					labels[i] = m.label
 				}
-				if segmented(c.Key("fm-mode"), &mode, labels...) {
+				if a.segmented(c.Key("fm-mode"), &mode, labels...) {
 					a.fmMode = mode
 					// Playing the FM, it changes to the mode at once.
 					if strings.HasPrefix(a.pl.Radio(), "fm:") {
@@ -253,16 +253,16 @@ func (a *app) fmCard(c *ui.Context) {
 	if tr != nil {
 		art = a.art.get(netease.Sized(tr.Album.PicURL, 600), true)
 	}
-	card := ui.Box(c.Key("fm-card")).Height(320).Radius(24).Background(ui.Hex("#232328")).TextColor(white).
+	card := ui.Box(c.Key("fm-card")).Height(320).Radius(26).Background(ui.Hex("#232328")).TextColor(white).
 		Shadow(0, 18, 44, -16, a.pal.cardShade)
 	in := artIn(card, backdrop(art))
 	card.Children(func() {
 		if in < 1 {
-			ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Radius(24).
+			ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Radius(26).
 				LinearGradient(ui.LinearGradient{Angle: 135, Oklab: true, From: ui.Oklch(0.42, 0.14, 20), To: ui.Oklch(0.3, 0.1, 300)})
 		}
-		artImage(c, backdrop(art), 24, in)
-		ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Radius(24).
+		artImage(c, backdrop(art), 26, in)
+		ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Radius(26).
 			LinearGradient(ui.LinearGradient{Angle: 90, Stops: []ui.GradientStop{
 				{Color: ui.RGBA(0, 0, 0, 0.35), At: 0},
 				{Color: ui.RGBA(0, 0, 0, 0.1), At: 1},
@@ -346,7 +346,7 @@ func (a *app) fmCovers(c *ui.Context, tr *netease.Track) {
 			back.AnimatePose(ui.Pose{Rotate: 6, X: 14}, ui.Animation{Spring: ui.SpringOptions{Duration: 500 * time.Millisecond, Bounce: 0.2}})
 			back.Children(func() { a.coverFill(c, next.Album.PicURL, 400, 14) })
 		}
-		front := ui.Box(c.Key("front")).Absolute().Top(0).Left(0).Size(size, size).Radius(16).
+		front := ui.Box(c.Key("front")).Absolute().Top(0).Left(0).Size(size, size).Radius(14).
 			Background(white.Alpha(0.12)).Shadow(0, 20, 44, -10, ui.RGBA(0, 0, 0, 0.55))
 		if tr == nil {
 			front.Center().Children(func() {
@@ -361,7 +361,7 @@ func (a *app) fmCovers(c *ui.Context, tr *netease.Track) {
 		front.AnimatePose(ui.Pose{Scale: scale}, ui.Animation{Spring: ui.SpringOptions{Duration: 600 * time.Millisecond, Bounce: 0.25}})
 		front.Children(func() {
 			ui.Box(c.Key(tr.ID)).Fill().Transition(ui.ElementTransition{Animation: &ui.Snappy, Enter: &ui.Motion{Scale: 0.92}}).
-				Children(func() { a.coverFill(c, tr.Album.PicURL, 600, 16) })
+				Children(func() { a.coverFill(c, tr.Album.PicURL, 600, 14) })
 		})
 	})
 }
@@ -369,8 +369,8 @@ func (a *app) fmCovers(c *ui.Context, tr *netease.Track) {
 // heartCard starts heart mode: songs like those the listener likes.
 func (a *app) heartCard(c *ui.Context, p palette) {
 	on := a.pl.Radio() == heartRadio
-	ui.Row(c).Padding(22, 26).Gap(20).Radius(18).AlignItems(ui.Center).Background(p.hover).Children(func() {
-		ui.Box(c).Size(56, 56).Radius(16).Center().Shrink(0).
+	ui.Row(c).Padding(22, 26).Gap(20).Radius(20).AlignItems(ui.Center).Background(p.hover).Children(func() {
+		ui.Box(c).Size(56, 56).Radius(14).Center().Shrink(0).
 			LinearGradient(ui.LinearGradient{Angle: 135, Oklab: true, From: ui.Oklch(0.72, 0.17, 10), To: ui.Oklch(0.58, 0.22, 350)}).
 			TextColor(white).Children(func() { ui.Icon(c, iconHeartFill).Size(26, 26) })
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(4).Children(func() {

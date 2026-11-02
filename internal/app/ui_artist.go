@@ -310,7 +310,7 @@ func (a *app) artistPage(c *ui.Context) {
 			}
 		}
 	}
-	a.trackRows(c, songs, true, header)
+	a.toolRows(c, songs, true, header)
 }
 
 // scrollPage scrolls a page of cards and rows, inset as one of tracks is:
@@ -326,7 +326,10 @@ func (a *app) scrollPage(c *ui.Context, content func()) {
 
 // empty says a list has nothing in it.
 func (a *app) empty(c *ui.Context, msg string) {
-	ui.Text(c, msg).FontSize(13).TextColor(a.pal.muted).Padding(40, 0).AlignSelf(ui.Center)
+	ui.Column(c).Padding(40, 0).Gap(12).AlignItems(ui.Center).AlignSelf(ui.Center).Children(func() {
+		mascotView(c, 72)
+		ui.Text(c, msg).FontSize(13).TextColor(a.pal.muted)
+	})
 }
 
 // artistPhotoSize is the width of an artist's round photo on their page.
@@ -391,7 +394,7 @@ func (a *app) artistHeader(c *ui.Context, d *artistData) {
 	ui.Row(c).AlignItems(ui.Center).Margin(34, 0, 14, 0).Children(func() {
 		ui.Text(c, artistTabTitles[a.artistTab]).FontSize(19).FontWeight(700).LetterSpacing(-0.3)
 		ui.Spacer(c)
-		if segmented(c.Key("tab"), &a.artistTab, "热门", "最新", "专辑", "动态") {
+		if a.segmented(c.Key("tab"), &a.artistTab, "热门", "最新", "专辑", "动态") {
 			a.loadArtist(ar.ID)
 		}
 	})

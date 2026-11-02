@@ -14,12 +14,14 @@ func TestStageStyleMenu(t *testing.T) {
 	a.nowPlaying, a.npPane = true, paneStage
 	a.pl.Seek(2 * time.Second)
 	tt.Frame()
+	tt.Advance(time.Second)
+	tt.Frame()
 	for _, c := range []struct{ item, want string }{{"云阶", "partita"}, {"倾诉", "tilt"}, {"流光", ""}} {
 		if err := tt.Click("律动效果"); err != nil {
 			t.Fatal(err)
 		}
-		if err := tt.ChooseMenuItem(c.item); err != nil {
-			t.Fatalf("%v; the menu shows %q", err, tt.Menu())
+		if err := chooseItem(tt, c.item); err != nil {
+			t.Fatalf("%v; the menu shows %q", err, tt.Texts())
 		}
 		tt.Frame()
 		if a.settings.StageStyle != c.want {
@@ -35,12 +37,14 @@ func TestStageSparksMenu(t *testing.T) {
 	a.nowPlaying, a.npPane = true, paneStage
 	a.settings.StageStyle = "tilt"
 	tt.Frame()
+	tt.Advance(time.Second)
+	tt.Frame()
 	for _, want := range []bool{true, false} {
 		if err := tt.Click("律动效果"); err != nil {
 			t.Fatal(err)
 		}
-		if err := tt.ChooseMenuItem("火花"); err != nil {
-			t.Fatalf("%v; the menu shows %q", err, tt.Menu())
+		if err := chooseItem(tt, "火花"); err != nil {
+			t.Fatalf("%v; the menu shows %q", err, tt.Texts())
 		}
 		tt.Frame()
 		if a.settings.StageSparks != want || a.settings.StageStyle != "tilt" {

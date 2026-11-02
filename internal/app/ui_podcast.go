@@ -190,9 +190,7 @@ func (a *app) podcastPage(c *ui.Context) {
 	cur := a.pl.Current()
 	a.scrollPage(c, func() {
 		ui.Row(c).Gap(28).AlignItems(ui.End).Padding(0, 0, 8, 0).Children(func() {
-			ui.Box(c).Size(212, 212).Radius(14).Shadow(0, 18, 40, -10, p.cardShade).Children(func() {
-				a.coverFill(c, pod.PicURL, 600, 14)
-			})
+			a.headCover(c, pod.PicURL)
 			ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(8).Children(func() {
 				kind := "播客"
 				if pod.Category != "" {
@@ -253,7 +251,7 @@ func (a *app) programRow(c *ui.Context, d *podcastData, i int, cur *netease.Trac
 		if cover == "" {
 			cover = d.podcast.PicURL
 		}
-		a.cover(c, cover, 96, 40, 6)
+		a.cover(c, cover, 96, 40, 8)
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(3).Children(func() {
 			title := ui.Text(c, pr.Name).FontSize(13.5).FontWeight(500).SingleLine()
 			if playing {
@@ -281,7 +279,7 @@ func (a *app) programRow(c *ui.Context, d *podcastData, i int, cur *netease.Trac
 // podcastRow is a podcast in a list, opening its page.
 func (a *app) podcastRow(c *ui.Context, pod *netease.Podcast) {
 	p := a.pal
-	row := ui.ButtonBase(c).Padding(10, 12).Gap(14).Radius(10).AlignItems(ui.Center).FocusRing(false).Label(pod.Name)
+	row := ui.ButtonBase(c).Padding(10, 12).Gap(14).Radius(14).AlignItems(ui.Center).FocusRing(false).Label(pod.Name)
 	if row.Hovered() {
 		row.Background(p.hover)
 	}

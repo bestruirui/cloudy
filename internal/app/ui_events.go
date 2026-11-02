@@ -32,7 +32,7 @@ func (a *app) artistEvents(c *ui.Context, d *artistData) {
 // what it shares, which opens its page.
 func (a *app) event(c *ui.Context, e *netease.Event) {
 	p := a.pal
-	ui.Column(c).Gap(12).Padding(20, 0).BorderWidth(0, 0, 1, 0).BorderColor(p.hairline).Children(func() {
+	ui.Column(c).Gap(12).Padding(20, 0).Children(func() {
 		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
 			a.cover(c, e.User.AvatarURL, 120, 40, 20)
 			ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(3).Children(func() {
@@ -77,13 +77,13 @@ func (a *app) event(c *ui.Context, e *netease.Event) {
 // has one.
 func (a *app) shared(c *ui.Context, name, sub, pic string, r route) {
 	p := a.pal
-	card := ui.ButtonBase(c.Key("shared")).Gap(12).Padding(8).Radius(10).AlignItems(ui.Center).Background(p.hover).
+	card := ui.ButtonBase(c.Key("shared")).Gap(12).Padding(8).Radius(14).AlignItems(ui.Center).Background(p.hover).
 		FocusRing(false).Label(name).Disabled(r.id == 0).MaxWidth(480)
 	if card.Hovered() {
 		card.Background(p.press)
 	}
 	card.Children(func() {
-		a.cover(c, pic, 120, 44, 6)
+		a.cover(c, pic, 120, 44, 8)
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(3).Children(func() {
 			ui.Text(c, name).FontSize(13.5).FontWeight(600).SingleLine()
 			ui.Text(c, sub).FontSize(12).TextColor(p.muted).SingleLine()

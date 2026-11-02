@@ -44,19 +44,20 @@ func (a *app) stageStyleButton(c *ui.Context) {
 		ui.Text(c, label).FontSize(13).FontWeight(600).TextColor(fg)
 		ui.Icon(c, iconDown).Size(12, 12).TextColor(fg)
 	})
-	b.Menu(func(m *ui.Menu) {
-		for _, s := range stageStyles {
-			if m.Item(s.label).Checked(a.settings.StageStyle == s.id).Chosen() && a.settings.StageStyle != s.id {
-				a.settings.StageStyle = s.id
-				a.settings.save()
-			}
-		}
-		m.Separator()
-		if m.Item("火花").Checked(a.settings.StageSparks).Chosen() {
-			a.settings.StageSparks = !a.settings.StageSparks
+	if !b.Clicked() {
+		return
+	}
+	var styles []menuAction
+	for _, s := range stageStyles {
+		styles = append(styles, menuAction{label: s.label, checked: a.settings.StageStyle == s.id, do: func() {
+			a.settings.StageStyle = s.id
 			a.settings.save()
-		}
-	})
+		}})
+	}
+	a.menuBelow(b, true, [][]menuAction{styles, {{label: "火花", checked: a.settings.StageSparks, do: func() {
+		a.settings.StageSparks = !a.settings.StageSparks
+		a.settings.save()
+	}}}}, nil)
 }
 
 // sparkTime is how long a word's sparks fly.

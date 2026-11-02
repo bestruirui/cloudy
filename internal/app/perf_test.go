@@ -53,12 +53,34 @@ func framesAt(a *app, tt *ui.Tester, pos time.Duration) int {
 	return asked
 }
 
+// The bar's cover turning asks for a few frames a second, which only paint it:
+// the view isn't built for it, as a pose at the display's rate would have the
+// window painted, for what doesn't change.
+func TestBarDiscFrames(t *testing.T) {
+	a, tt, builds := playingApp()
+	a.pl.TogglePlay()
+	tt.Frame()
+	if !a.pl.Playing() {
+		t.Skip("the fixture doesn't play")
+	}
+	tt.Advance(time.Second)
+	tt.Frame()
+	was := *builds
+	if n := framesAt(a, tt, 12*time.Second); n > 16 {
+		t.Errorf("it asks for %d frames a second", n)
+	}
+	if n := *builds - was; n > 4 {
+		t.Errorf("it built the view %d times", n)
+	}
+}
+
 // Now Playing asks for frames only as fast as what it shows changes. The
 // Tester runs timers as it settles a frame, so this counts only what does
 // not change for a while: a frame log of the app (MYGO_FRAME_STATS) measures
 // the rest.
 func TestNowPlayingFrameBudget(t *testing.T) {
 	a, tt, _ := playingApp()
+	a.settings.BarSpin = false
 	if n := framesAt(a, tt, 12*time.Second); n > 3 {
 		t.Errorf("a page under the player: %d frames a second", n)
 	}

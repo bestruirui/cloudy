@@ -96,6 +96,8 @@ func (a *app) npCover(c *ui.Context, tr *netease.Track, art *artwork, size float
 		cs.off = ui.Point{X: -float32(dir) * far}
 	}
 	wrap := ui.Box(c.Key(coverKey{tr.ID, cs.gen})).Size(size, size).AlignSelf(ui.Start).Label("专辑封面")
+	a.npSpot.cover = wrap.LayoutBounds()
+	a.flown(wrap)
 	entering := cs.enter != 0
 	if entering {
 		// A new cover's first frame: it shows where it comes in from.
@@ -217,21 +219,28 @@ func (a *app) npCover(c *ui.Context, tr *netease.Track, art *artwork, size float
 		if over {
 			scale *= 1.02
 		}
-		box := ui.Box(c).Fill().Radius(16).Shadow(0, 30, 60, -12, ui.RGBA(0, 0, 0, 0.55))
+		a.npCoverScale = scale
+		box := ui.Box(c).Fill().Radius(14).Shadow(0, 30, 60, -12, ui.RGBA(0, 0, 0, 0.55))
 		if math.Abs(float64(rx))+math.Abs(float64(ry)) > 0.05 {
 			// In depth only while tilted: flat, it draws as an image does.
 			box.RotateX(rx).RotateY(ry).Perspective(900)
 		}
 		box.AnimatePose(ui.Pose{Scale: scale}, ui.Animation{Spring: ui.SpringOptions{Duration: 600 * time.Millisecond, Bounce: 0.25}})
 		in := artIn(box, bitmap(art))
-		if in < 1 {
+		// The bar's holds its place, for the flight to land on, until the
+		// larger one comes in over it.
+		small := bitmap(a.art.peek(netease.Sized(tr.Album.PicURL, 120)))
+		if in < 1 && small == nil {
 			box.Background(white.Alpha(0.08))
 		}
 		box.Children(func() {
-			artImage(c, bitmap(art), 16, in)
+			if in < 1 {
+				artImage(c, small, 14, 1)
+			}
+			artImage(c, bitmap(art), 14, in)
 			if shine > 0.01 {
 				ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).PassThrough().Draw(func(p *ui.Painter, r ui.Rect) {
-					glareShader().Draw(p, r, shader.Options{Radius: 16, Uniforms: map[string]any{
+					glareShader().Draw(p, r, shader.Options{Radius: 14, Uniforms: map[string]any{
 						"Center": [2]float32{gx, gy}, "Core": r.W * 0.16, "Sigma": r.W * 0.225, "Alpha": 0.26 * shine,
 					}})
 				})

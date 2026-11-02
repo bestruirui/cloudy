@@ -28,6 +28,37 @@ type settings struct {
 	Quality string `json:"quality"`
 	// Appearance is light, dark, or system to follow the system.
 	Appearance string `json:"appearance"`
+	// Font is the font of the app's text (uiFonts): empty for the default.
+	Font string `json:"font,omitempty"`
+	// LiquidGlass floats the player bar as a capsule of glass. Off is kept
+	// too, without omitempty: left out, it would load as the default.
+	LiquidGlass bool `json:"liquidGlass"`
+	// NpLight gives the line sung, the progress bar and the volume a faint
+	// glow in Now Playing (ui_light.go). As for LiquidGlass, off is kept too.
+	NpLight bool `json:"npLight"`
+	// GlowLevel is how strong that glow is, from 0 to 1.
+	GlowLevel float64 `json:"glowLevel"`
+	// GlassClear is how clear the glass of the player bar is, from 0 to 1,
+	// and GlassBend how far it bends what shows through.
+	GlassClear float64 `json:"glassClear"`
+	GlassBend  float64 `json:"glassBend"`
+	// GlassPanels makes menus, popovers, dialogs and the settings panes of
+	// glass, else plain, which takes less of the GPU. Off is kept too.
+	GlassPanels bool `json:"glassPanels"`
+	// Motion is how much the app moves: full, lite or off.
+	Motion string `json:"motion,omitempty"`
+	// AccentCover takes the accent from the cover playing: else the app's red.
+	AccentCover bool `json:"accentCover"`
+	// BarSpin turns the cover in the bar as a record while music plays. Off
+	// is kept too.
+	BarSpin bool `json:"barSpin"`
+	// GlobalKeys has the keys of globalKeys work from any app.
+	GlobalKeys bool `json:"globalKeys"`
+	// LyricScale is the size of lyrics, of their size as designed: 0 for 1.
+	LyricScale float64 `json:"lyricScale,omitempty"`
+	// LyricShift is how many milliseconds a song's lyrics run early, by its
+	// ID, where they don't keep time with it.
+	LyricShift map[int64]int `json:"lyricShift,omitempty"`
 	// Smoke makes the progress bars comets trailing smoke as music plays,
 	// for a few percent of a core: the listener turns it on.
 	Smoke bool `json:"smoke"`
@@ -68,7 +99,7 @@ type settings struct {
 }
 
 func defaultSettings() settings {
-	return settings{NotchActivity: true, Quality: "exhigh", Appearance: "system", Volume: 0.8, Normalize: true, AppIcon: "dock-and-menubar", CacheMB: 2048, Captions: true}
+	return settings{BarSpin: true, GlobalKeys: true, NotchActivity: true, Quality: "exhigh", Appearance: "system", LiquidGlass: true, NpLight: true, GlowLevel: 0.5, GlassClear: 0.5, GlassBend: 0.5, GlassPanels: true, Volume: 0.8, Normalize: true, AppIcon: "dock-and-menubar", CacheMB: 2048, Captions: true}
 }
 
 func settingsPath() (string, error) {
@@ -94,6 +125,29 @@ func moveOldData() {
 			continue
 		}
 		moveDir(filepath.Join(filepath.Dir(dir), oldName), dir)
+	}
+}
+
+// formerName is what this fork's app was called before it had a name of its
+// own, and kept its data under.
+const formerName = "MyGo 云音乐"
+
+// copyFormerData starts a new installation from the settings and the place
+// in the queue of the app before the fork, which stays as it was, for it can
+// still be opened. The login is the system's, under the app's identity: it
+// asks for the QR code again.
+func copyFormerData() {
+	dir, err := mygo.App.Path(mygo.PathUserData)
+	if err != nil {
+		return
+	}
+	if entries, err := os.ReadDir(dir); err != nil || len(entries) > 0 {
+		return
+	}
+	for _, name := range []string{"settings.json", "session.json"} {
+		if b, err := os.ReadFile(filepath.Join(filepath.Dir(dir), formerName, name)); err == nil {
+			os.WriteFile(filepath.Join(dir, name), b, 0o600)
+		}
 	}
 }
 

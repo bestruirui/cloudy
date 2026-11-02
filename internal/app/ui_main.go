@@ -15,9 +15,19 @@ const sidebarWidth = 232
 func (a *app) view(c *ui.Context) {
 	t := *c.Theme()
 	a.pal = paletteFor(&t)
+	a.motion = a.motionLevel(c)
+	a.followCover()
+	if accent, ok := a.coverAccent(); ok && a.settings.AccentCover {
+		a.pal.accent = accent
+	}
 	p := a.pal
 	t.Accent, t.AccentText = p.accent, p.onAccent
+	if accent, ok := a.coverAccent(); ok && a.settingsOpen {
+		// The settings' switches take the color of what plays.
+		t.Accent = accent
+	}
 	t.Selection = p.accent.Alpha(0.3)
+	t.Font = a.fontFamily()
 	c.SetTheme(&t)
 
 	a.shortcuts(c)
@@ -26,7 +36,7 @@ func (a *app) view(c *ui.Context) {
 		c.Root().Background(ui.Transparent)
 	}
 	root := ui.Box(c).Fill()
-	if !c.Focused(a.searchBox) {
+	if !c.Focused(a.searchBox) && !c.Focused(a.filterBox) {
 		// Space plays and pauses wherever the focus is, as in Music. On
 		// the container around everything, it comes before a button the
 		// pointer focused, which would take Space as a click; on the
@@ -49,12 +59,14 @@ func (a *app) view(c *ui.Context) {
 			}
 			side := ui.Column(c).Width(sidebarWidth)
 			if !c.Vibrancy() {
-				side.Background(p.sidebar)
+				a.sideColor = side.AnimateColor("tint", a.sidebarColor(), ui.Animation{Duration: 700 * time.Millisecond})
+				side.Background(a.sideColor)
 			}
+			a.sideWash(side, !c.Vibrancy())
 			side.Children(func() { a.sidebar(c) })
 			// Keyed, so that a popover of the sidebar opening or closing
 			// keeps what the page and its bars hold, their edges' fades.
-			ui.Box(c.Key("main")).Grow(1).Background(p.bg).BorderWidth(0, 0, 0, 1).BorderColor(p.hairline).Children(func() {
+			ui.Box(c.Key("main")).Grow(1).Background(p.bg).Children(func() {
 				a.content(c)
 				// The bars float over the page, which scrolls under them:
 				// positioned, they paint over it.
@@ -62,11 +74,16 @@ func (a *app) view(c *ui.Context) {
 				a.playerBar(c)
 			})
 		})
+		a.coverFlightView(c)
 		a.nowPlayingLayer(c, npOpen, npSettled)
+		a.splash(c)
 	})
 	a.loginDialog(c)
 	a.playlistNameDialog(c)
 	a.deletePlaylistDialog(c)
+	a.settingsPanel(c)
+	a.menuOverlay(c)
+	a.paneToasts(c)
 	if a.toast != "" {
 		c.Toast(a.toast)
 		a.toast = ""
@@ -109,6 +126,7 @@ func (a *app) open(r route) {
 
 // show shows the page of r.
 func (a *app) show(r route) {
+	a.pageDir = pageLevel(r) - pageLevel(a.route)
 	a.route = r
 	if r.page == pageSearch {
 		a.query, a.searched = r.query, r
@@ -151,7 +169,9 @@ func (a *app) back() {
 	a.forward = append(a.forward, a.route)
 	r := a.history[len(a.history)-1]
 	a.history = a.history[:len(a.history)-1]
+	a.flyBack(r)
 	a.show(r)
+	a.pageDir = -1
 }
 
 // goForward goes to the page back left, as the forward button of a mouse
@@ -165,6 +185,7 @@ func (a *app) goForward() {
 	a.forward = a.forward[:len(a.forward)-1]
 	a.nowPlaying = false
 	a.show(r)
+	a.pageDir = 1
 }
 
 func (a *app) sidebar(c *ui.Context) {
@@ -179,7 +200,9 @@ func (a *app) sidebar(c *ui.Context) {
 	ui.Column(c).Fill().Padding(top, 14, 14, 14).Gap(4).DragWindow().Children(func() {
 		a.searchField(c)
 
-		ui.Scroll(c.Key("nav")).TrackScroll(&a.navScroll).Grow(1).Margin(0, -6).Padding(0, 6).Gap(4).Children(func() {
+		nav := ui.Box(c.Key("nav-box")).Grow(1).MinHeight(0).Margin(0, -6)
+		nav.Children(func() {
+		ui.Scroll(c.Key("nav")).TrackScroll(&a.navScroll).Fill().Padding(0, 6).Gap(4).Children(func() {
 			a.navItem(c, iconHome, "为你推荐", route{page: pageHome})
 			a.navItem(c, iconDaily, "每日推荐", route{page: pageDaily})
 			a.navItem(c, iconRadio, "私人 FM", route{page: pageFM})
@@ -191,9 +214,12 @@ func (a *app) sidebar(c *ui.Context) {
 			a.myPlaylists(c, "我的歌单", a.mine, true, &a.mineCollapsed)
 			a.myPlaylists(c, "收藏的歌单", a.saved, false, &a.savedCollapsed)
 		})
+		a.scrollFades(c, &a.navScroll)
+		})
 
 		// What plays, as a card at the foot of the sidebar, over who listens.
-		if tr := a.pl.Current(); tr != nil {
+		// Not with the bar of glass, which says as much, and more, beside it.
+		if tr := a.pl.Current(); tr != nil && !a.settings.LiquidGlass {
 			a.sidebarNowPlaying(c, tr)
 		}
 		a.accountRow(c)
@@ -205,10 +231,7 @@ func (a *app) navItem(c *ui.Context, icon *ui.SVG, label string, r route) {
 	selected := a.route.page == r.page && !a.nowPlaying
 	b := ui.ButtonBase(c.Key(label)).Height(34).PaddingX(10).Gap(10).Radius(8).AlignItems(ui.Center).Justify(ui.Start).FocusRing(false)
 	bg := ui.Transparent
-	switch {
-	case selected:
-		bg = p.press
-	case b.Hovered():
+	if b.Hovered() && !selected {
 		bg = p.hover
 	}
 	b.Background(b.AnimateColor("bg", bg, ui.Animation{Duration: 120 * time.Millisecond}))
@@ -217,6 +240,9 @@ func (a *app) navItem(c *ui.Context, icon *ui.SVG, label string, r route) {
 		color = p.accent
 	}
 	b.Children(func() {
+		if selected {
+			a.navPill(c)
+		}
 		ui.Icon(c, icon).Size(17, 17).TextColor(color)
 		ui.Text(c, label).FontSize(13.5).FontWeight(500).TextColor(p.text)
 	})
@@ -227,14 +253,14 @@ func (a *app) navItem(c *ui.Context, icon *ui.SVG, label string, r route) {
 
 func (a *app) sidebarNowPlaying(c *ui.Context, tr *netease.Track) {
 	p := a.pal
-	card := ui.ButtonBase(c.Key("np-card")).Gap(10).Padding(8).Radius(12).AlignItems(ui.Center).FocusRing(false).Label("正在播放")
+	card := ui.ButtonBase(c.Key("np-card")).Gap(10).Padding(8).Radius(14).AlignItems(ui.Center).FocusRing(false).Label("正在播放")
 	bg := p.hover
 	if card.Hovered() {
 		bg = p.press
 	}
 	card.Background(card.AnimateColor("bg", bg, ui.Animation{Duration: 120 * time.Millisecond}))
 	card.Children(func() {
-		a.cover(c, tr.Album.PicURL, 96, 40, 6).Shadow(0, 2, 6, 0, p.cardShade)
+		a.cover(c, tr.Album.PicURL, 96, 40, 8).Shadow(0, 2, 6, 0, p.cardShade)
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(2).Children(func() {
 			ui.Text(c, tr.Name).FontSize(12.5).FontWeight(600).SingleLine()
 			a.artistLinks(c, tr, p.muted, p.text).FontSize(11.5).SingleLine()
@@ -289,9 +315,11 @@ const topBarHeight = 40
 // once it has moved up, content is under the bar at the top.
 func (a *app) startMark(c *ui.Context) {
 	b := ui.Box(c.Key("start-mark")).Height(0).Bounds()
+	a.headGone = 0
 	if b.W > 0 {
 		top, _ := a.insets(c)
 		a.underTop = b.Y < top+pageGap-0.5
+		a.headGone = top + pageGap - b.Y
 	}
 }
 
@@ -316,14 +344,23 @@ func edgeShown(el ui.Element, under bool) float32 {
 	return el.AnimateTo("shown", target, ui.Animation{Duration: 180 * time.Millisecond})
 }
 
-// pageTop is the strip over the top of a page, frosting what scrolls under
-// it as macOS 26's hard scroll edge does: it drags the window, and holds
-// the back button once there is a page to go back to.
+// pageTop is the strip over the top of a page, what scrolls under it frosted
+// as macOS 26's hard scroll edge does, or, beside a bar of glass that floats,
+// fading away from it, as the soft one does, with no line across the window:
+// it drags the window, and holds the back button once there is a page to go
+// back to.
 func (a *app) pageTop(c *ui.Context) {
 	top, _ := a.insets(c)
-	edge := ui.Box(c.Key("top-edge")).Absolute().Top(0).Left(0).Right(0).Height(top).DragWindow().
-		Material(glass.ScrollEdge{Hard: true, Background: a.pal.bg})
-	edge.Opacity(edgeShown(edge, a.underTop))
+	if a.settings.LiquidGlass {
+		edge := ui.Box(c.Key("top-edge")).Absolute().Top(0).Left(0).Right(0).Height(top + 24).PassThrough().
+			Material(glass.ScrollEdge{Background: a.pal.bg})
+		edge.Opacity(edgeShown(edge, a.underTop))
+		ui.Box(c.Key("top-drag")).Absolute().Top(0).Left(0).Right(0).Height(top).DragWindow()
+	} else {
+		edge := ui.Box(c.Key("top-edge")).Absolute().Top(0).Left(0).Right(0).Height(top).DragWindow().
+			Material(glass.ScrollEdge{Hard: true, Background: a.pal.bg})
+		edge.Opacity(edgeShown(edge, a.underTop))
+	}
 	if len(a.history) > 0 || len(a.forward) > 0 {
 		ui.Row(c).Absolute().Top(0).Left(20).Height(topBar(c)).AlignItems(ui.Center).Children(func() {
 			back := iconButton(c.Key("back"), iconBack, 18, a.pal.muted, "返回").Disabled(len(a.history) == 0)
@@ -336,6 +373,7 @@ func (a *app) pageTop(c *ui.Context) {
 			if len(a.forward) > 0 && iconButton(c.Key("forward"), iconForward, 18, a.pal.muted, "前进").Clicked() {
 				a.goForward()
 			}
+			a.playlistTop(c)
 		})
 	}
 }
@@ -345,33 +383,45 @@ func (a *app) content(c *ui.Context) {
 	// list, as a page's tabs in its header, opens it as the list builds.
 	if a.scrolled != a.route {
 		a.trackList, a.pageScroll, a.scrolled = ui.ListState{}, ui.ScrollState{}, a.route
+		a.pageScroll.Y, a.restoreY = a.restoreY, 0
 	}
+	a.headAt = ui.Rect{}
 	// Pages mark where their content is, as they scroll.
 	a.underTop, a.underBottom = false, false
-	switch a.route.page {
-	case pageHome:
-		a.homePage(c)
-	case pageDaily:
-		a.dailyPage(c)
-	case pageCharts:
-		a.chartsPage(c)
-	case pagePlaylist:
-		a.playlistPage(c)
-	case pageSearch:
-		a.searchPage(c)
-	case pageFM:
-		a.fmPage(c)
-	case pageArtist:
-		a.artistPage(c)
-	case pageAlbum:
-		a.albumPage(c)
-	case pageUser:
-		a.userPage(c)
-	case pagePodcast:
-		a.podcastPage(c)
-	case pagePodcasts:
-		a.podcastsPage(c)
+	// Far away, unless its start is built, as it isn't scrolled out of view.
+	a.headGone = 1 << 20
+	// Keyed by its route, the page before leaves as this one comes.
+	page := ui.Box(c.Key(a.route)).Absolute().Top(0).Left(0).Right(0).Bottom(0)
+	a.pageMotion(page)
+	if url := a.pageArt(); url != "" {
+		a.pageAura(page, url)
 	}
+	page.Children(func() {
+		switch a.route.page {
+		case pageHome:
+			a.homePage(c)
+		case pageDaily:
+			a.dailyPage(c)
+		case pageCharts:
+			a.chartsPage(c)
+		case pagePlaylist:
+			a.playlistPage(c)
+		case pageSearch:
+			a.searchPage(c)
+		case pageFM:
+			a.fmPage(c)
+		case pageArtist:
+			a.artistPage(c)
+		case pageAlbum:
+			a.albumPage(c)
+		case pageUser:
+			a.userPage(c)
+		case pagePodcast:
+			a.podcastPage(c)
+		case pagePodcasts:
+			a.podcastsPage(c)
+		}
+	})
 }
 
 // centered shows a message, with a retry button if retry is set: what a
@@ -379,6 +429,7 @@ func (a *app) content(c *ui.Context) {
 func (a *app) centered(c *ui.Context, err string, retry func()) {
 	top, bottom := a.insets(c)
 	ui.Column(c).Grow(1).Padding(top, 0, bottom, 0).Center().Gap(12).Children(func() {
+		mascotView(c, 96)
 		ui.Text(c, err).TextColor(a.pal.muted).FontSize(13)
 		if retry != nil && ui.Button(c, "重试").Clicked() {
 			retry()

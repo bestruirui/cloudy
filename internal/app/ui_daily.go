@@ -352,8 +352,8 @@ func (a *app) dailyPicks(c *ui.Context, songs []netease.Track, ours bool) {
 	ui.Column(c.Key("picks")).Width(236).Shrink(0).Gap(2).Children(func() {
 		for i := range min(3, len(songs)) {
 			tr := &songs[i]
-			row := ui.ButtonBase(c.Key(tr.ID)).Row().Gap(12).Padding(7, 12).Radius(12).AlignItems(ui.Center).FocusRing(false).Label(tr.Name).
-				ContextMenu(a.songItems(tr, 0))
+			row := ui.ButtonBase(c.Key(tr.ID)).Row().Gap(12).Padding(7, 12).Radius(14).AlignItems(ui.Center).FocusRing(false).Label(tr.Name)
+			a.songContext(row, tr, 0)
 			bg := white.Alpha(0)
 			if row.Hovered() {
 				bg = white.Alpha(0.1)
@@ -392,10 +392,10 @@ func (a *app) dailyStack(c *ui.Context, songs []netease.Track, fanned bool, out 
 			if fanned {
 				pose = ui.Pose{Rotate: -9 * float32(i), X: -10 * float32(i), Y: -2}
 			}
-			cov := ui.Box(c.Key(i)).Absolute().Left(sleeveLeft-30*float32(i)).Top((sleeveSize-size)/2).Size(size, size).Radius(10).
+			cov := ui.Box(c.Key(i)).Absolute().Left(sleeveLeft-30*float32(i)).Top((sleeveSize-size)/2).Size(size, size).Radius(14).
 				Opacity(1-0.12*float32(i)).Shadow(0, 10, 22, -6, ui.RGBA(0, 0, 0, 0.45))
 			cov.AnimatePose(pose, spring)
-			cov.Children(func() { a.coverFill(c, songs[i].Album.PicURL, 240, 10) })
+			cov.Children(func() { a.coverFill(c, songs[i].Album.PicURL, 240, 14) })
 		}
 		// The record, behind its sleeve.
 		mid := float32(sleeveLeft + sleeveSize/2)
@@ -405,13 +405,13 @@ func (a *app) dailyStack(c *ui.Context, songs []netease.Track, fanned bool, out 
 				drawRecord(p, r, bitmap(a.art.get(netease.Sized(songs[0].Album.PicURL, 240), false)), float32(a.dailySpin.angle))
 			})
 		// The sleeve.
-		sleeve := ui.Box(c.Key("sleeve")).Absolute().Left(sleeveLeft).Top(0).Size(sleeveSize, sleeveSize).Radius(12).
+		sleeve := ui.Box(c.Key("sleeve")).Absolute().Left(sleeveLeft).Top(0).Size(sleeveSize, sleeveSize).Radius(14).
 			Shadow(0, 16, 30, -8, ui.RGBA(0, 0, 0, 0.5))
 		sleeve.AnimatePose(ui.Pose{Rotate: -2 * b2f(fanned), Y: -3 * b2f(fanned)}, spring)
 		sleeve.Children(func() {
-			a.coverFill(c, songs[0].Album.PicURL, 400, 12)
+			a.coverFill(c, songs[0].Album.PicURL, 400, 14)
 			// Light on its gloss, and its edge.
-			ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Radius(12).PassThrough().Border(1, white.Alpha(0.14)).
+			ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Radius(14).PassThrough().Border(1, white.Alpha(0.14)).
 				LinearGradient(ui.LinearGradient{Angle: 145, Stops: []ui.GradientStop{
 					{Color: white.Alpha(0.22), At: 0}, {Color: white.Alpha(0), At: 0.42},
 					{Color: ui.RGBA(0, 0, 0, 0), At: 0.7}, {Color: ui.RGBA(0, 0, 0, 0.18), At: 1},

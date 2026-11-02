@@ -88,6 +88,15 @@ func (c *artCache) add(key string, a *artwork) {
 	}
 }
 
+// peek returns the cover at url if it is here, without asking for it.
+func (c *artCache) peek(url string) *artwork {
+	if a, ok := c.art[url]; ok {
+		a.used = c.now()
+		return a
+	}
+	return c.gone[url].Value()
+}
+
 // get returns the cover at url, or nil while it loads.
 func (c *artCache) get(url string, backdrop bool) *artwork {
 	if url == "" {
