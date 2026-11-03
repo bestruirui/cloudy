@@ -153,9 +153,13 @@ func (a *app) lyricScale() float32 {
 	return 1
 }
 
-// lyricTools are at the foot of the lyrics while the pointer is over the
-// window: their size, and how early or late they run, kept for each song.
-func (a *app) lyricTools(c *ui.Context, id int64) {
+// lyricTools are under the volume while the pointer is over the window, in
+// at, a box in the row of the cover and the lyrics: their size, and how early
+// or late they run, kept for each song. They are of the view rather than over
+// it, as the tabs are: two capsules in a hairline, their words as faint as
+// the tabs' until the pointer is on them, and a value set brighter than one
+// left as it was.
+func (a *app) lyricTools(c *ui.Context, id int64, at ui.Rect) {
 	s := &a.settings
 	shift := s.LyricShift[id]
 	move := func(by int) {
@@ -173,27 +177,54 @@ func (a *app) lyricTools(c *ui.Context, id int64) {
 		s.LyricScale = math.Max(0.7, math.Min(float64(a.lyricScale())+by, 1.6))
 		a.changed()
 	}
-	bar := ui.Row(c.Key("lyric-tools")).Absolute().Right(10).Bottom(14).Gap(2).Padding(4).AlignItems(ui.Center).Label("歌词调整")
-	a.pane(bar, 20, true)
+	scale := int(math.Round(float64(a.lyricScale()) * 100))
+	bar := ui.Row(c.Key("lyric-tools")).Absolute().Left(at.X).Top(at.Y).Width(at.W).Justify(ui.Center).Gap(10).AlignItems(ui.Center).Label("歌词调整")
 	reveal(bar, a.npPointer).Children(func() {
-		chip := func(key, label, says string, do func()) ui.Element {
-			b := ui.ButtonBase(c.Key(key)).Height(28).PaddingX(9).Radius(14).Center().FocusRing(false).Label(says)
-			if b.Hovered() {
-				b.Background(white.Alpha(0.12))
+		group := func(key string, chips func()) {
+			ui.Row(c.Key(key)).Height(32).Padding(2).Radius(999).AlignItems(ui.Center).
+				Background(white.Alpha(0.04)).Border(1, white.Alpha(0.1)).Children(chips)
+		}
+		fade := ui.Animation{Duration: 120 * time.Millisecond}
+		// Every button keeps its width, whatever it says: one that changed
+		// would move the ones beside it from under the pointer, between two
+		// clicks.
+		chip := func(key, says string, wide float32, set bool, do func(), label func(fg ui.Color) ui.Element) {
+			b := ui.ButtonBase(c.Key(key)).Size(wide, 26).Radius(999).Center().FocusRing(false).Label(says)
+			bg, fg := ui.Transparent, white.Alpha(0.55)
+			if set {
+				fg = white.Alpha(0.85)
 			}
-			b.Children(func() { ui.Text(c, label).FontSize(12).FontWeight(600).TextColor(white.Alpha(0.85)).SingleLine() })
+			if b.Hovered() {
+				bg, fg = white.Alpha(0.1), white
+			}
+			b.Background(b.AnimateColor("bg", bg, fade))
+			fg = b.AnimateColor("fg", fg, fade)
+			b.Children(func() { label(fg).FontWeight(600).SingleLine() })
 			if b.Clicked() {
 				do()
 			}
-			return b
 		}
-		chip("smaller", "A−", "歌词字号减小", func() { size(-0.1) })
-		chip("larger", "A+", "歌词字号增大", func() { size(0.1) })
-		ui.Box(c).Size(1, 14).Margin(0, 3).Background(white.Alpha(0.14))
-		chip("earlier", "提前", "歌词提前 0.1 秒", func() { move(100) })
-		// Always there, and as wide: a button that came and went would move
-		// the ones beside it from under the pointer, between two clicks.
-		chip("reset", fmt.Sprintf("%+.1fs", float64(shift)/1000), "恢复歌词时间", func() { move(-shift) }).Width(52)
-		chip("later", "延后", "歌词延后 0.1 秒", func() { move(-100) })
+		word := func(text string, size float32) func(ui.Color) ui.Element {
+			return func(fg ui.Color) ui.Element { return ui.Text(c, text).FontSize(size).TextColor(fg) }
+		}
+		number := func(text string) func(ui.Color) ui.Element {
+			return func(fg ui.Color) ui.Element {
+				return ui.Text(c, text).FontSize(12).FontFeatures("tnum").TextColor(fg)
+			}
+		}
+		// The size, between a small A and a large one.
+		group("size", func() {
+			chip("smaller", "歌词字号减小", 30, false, func() { size(-0.1) }, word("A", 11))
+			chip("scale", "恢复歌词字号", 48, scale != 100, func() {
+				s.LyricScale = 1
+				a.changed()
+			}, number(fmt.Sprintf("%d%%", scale)))
+			chip("larger", "歌词字号增大", 30, false, func() { size(0.1) }, word("A", 16))
+		})
+		group("time", func() {
+			chip("earlier", "歌词提前 0.1 秒", 44, false, func() { move(100) }, word("提前", 13))
+			chip("reset", "恢复歌词时间", 52, shift != 0, func() { move(-shift) }, number(fmt.Sprintf("%+.1fs", float64(shift)/1000)))
+			chip("later", "歌词延后 0.1 秒", 44, false, func() { move(-100) }, word("延后", 13))
+		})
 	})
 }

@@ -14,9 +14,10 @@ import (
 // player in small, for when the main window is out of the way.
 
 const (
-	deskW, deskH = 920, 150
-	miniW, miniH = 420, 116
-	miniDisc     = 72 // the cover in the mini window
+	deskW, deskH  = 920, 150
+	deskToolsRoom = 40 // over the lyrics, for their tools
+	miniW, miniH  = 420, 116
+	miniDisc      = 72 // the cover in the mini window
 )
 
 // spot returns where the lyrics go: where they were left, or at the foot of
@@ -172,7 +173,11 @@ func (a *app) deskView(c *ui.Context) {
 		scale = float32(s.DeskScale)
 	}
 	look := a.deskLookOf(s.DeskStyle)
-	root := ui.Column(c.Key("desk")).Fill().Center().PaddingX(24)
+	// The lyrics hang from a line under the room for their tools, rather
+	// than in the middle: the tools stay just over them however many lines
+	// or how large, and the line sung stays put as the one under it comes
+	// and goes.
+	root := ui.Column(c.Key("desk")).Fill().AlignItems(ui.Center).Padding(deskToolsRoom, 24, 0, 24)
 	over := root.Hovered()
 	if over && !s.DeskLock {
 		root.Cursor(ui.CursorGrab)
@@ -200,8 +205,8 @@ func (a *app) deskView(c *ui.Context) {
 				}
 			}
 		})
-		if over && !s.DeskLock {
-			a.deskTools(c)
+		if !s.DeskLock {
+			a.deskTools(c, look, over)
 		}
 	})
 	if pl.Playing() && len(lines) > 0 {
@@ -250,8 +255,10 @@ func (a *app) deskLine(c *ui.Context, key, text string, words []lyrics.Word, pos
 }
 
 // deskTools change the lyrics' look and size, lock them where they are, and
-// close them, on a surface of their own, to read over any style.
-func (a *app) deskTools(c *ui.Context) {
+// close them: a capsule of the mini window's stuff, in the color of what
+// plays, to read over any style, centered just over the lyrics. It rises in
+// as the pointer comes over them, shown, and sinks away as it leaves.
+func (a *app) deskTools(c *ui.Context, look deskLook, shown bool) {
 	s := &a.settings
 	size := func(by float64) {
 		if s.DeskScale == 0 {
@@ -260,43 +267,83 @@ func (a *app) deskTools(c *ui.Context) {
 		s.DeskScale = math.Max(0.7, math.Min(s.DeskScale+by, 1.3))
 		a.changed()
 	}
-	ui.Row(c.Key("tools")).Absolute().Top(2).Right(6).Gap(1).Padding(2).Radius(14).AlignItems(ui.Center).
-		Background(ui.RGBA(16, 16, 20, 0.82)).Children(func() {
-		chip := func(key, label, says string, wide float32, do func()) {
-			b := ui.ButtonBase(c.Key(key)).Size(wide, 24).Radius(8).Center().FocusRing(false).Label(says)
-			if b.Hovered() {
-				b.Background(white.Alpha(0.14))
-			}
-			b.Children(func() { ui.Text(c, label).FontSize(12).FontWeight(600).TextColor(white.Alpha(0.9)) })
-			if b.Clicked() {
-				do()
-			}
+	style := 0
+	for i, d := range deskStyles {
+		if d.id == s.DeskStyle {
+			style = i
 		}
-		chip("look", "样式", "换一种样式", 40, func() {
-			next := 0
-			for i, d := range deskStyles {
-				if d.id == s.DeskStyle {
-					next = (i + 1) % len(deskStyles)
+	}
+	pose := ui.Pose{Y: 6, Scale: 0.96, Fade: 1}
+	if shown {
+		pose = ui.Pose{}
+	}
+	fade := ui.Animation{Duration: 120 * time.Millisecond}
+	// As wide as the window, as the lyrics are centered in it: the capsule
+	// centers over them, and the pointer goes through the rest to drag them.
+	ui.Row(c.Key("tools-row")).Absolute().Top(deskToolsRoom - 35).Left(0).Right(0).Justify(ui.Center).PassThrough().Children(func() {
+		bar := ui.Row(c.Key("tools")).Height(30).Padding(2).Gap(1).Radius(999).AlignItems(ui.Center).
+			Background(a.miniSurface().Alpha(0.94)).Border(1, white.Alpha(0.14)).Shadow(0, 6, 16, -6, ui.RGBA(0, 0, 0, 0.5))
+		bar.AnimatePose(pose, ui.Animation{Spring: ui.SpringOptions{Duration: 280 * time.Millisecond, Bounce: 0.18}})
+		bar.Children(func() {
+			// Every button keeps its width, whatever it says: one that changed
+			// would move those beside it from under the pointer, between two
+			// clicks.
+			chip := func(key, says string, wide float32, hot ui.Color, do func(), inside func()) {
+				b := ui.ButtonBase(c.Key(key)).Size(wide, 26).Radius(13).Gap(6).Center().FocusRing(false).Label(says)
+				bg, fg := ui.Transparent, white.Alpha(0.8)
+				if b.Hovered() {
+					bg, fg = hot, white
+				}
+				b.Background(b.AnimateColor("bg", bg, fade)).TextColor(b.AnimateColor("fg", fg, fade))
+				press := ui.Pose{}
+				if b.Pressed() {
+					press.Scale = 0.9
+				}
+				b.AnimatePose(press, ui.Snappy).Children(inside)
+				if b.Clicked() {
+					do()
 				}
 			}
-			if s.DeskStyle == "" {
-				next = 1
-			}
-			s.DeskStyle = deskStyles[next].id
-			a.changed()
-			a.toast = "桌面歌词：" + deskStyles[next].label
+			rule := func() { ui.Box(c).Size(1, 14).Margin(0, 4).Background(white.Alpha(0.14)) }
+			hover := white.Alpha(0.12)
+
+			// The style: a dot of its colors, the words' on what they lie on
+			// or are edged with, and its name. A click goes on to the next.
+			chip("look", "换一种样式", 88, hover, func() {
+				next := (style + 1) % len(deskStyles)
+				s.DeskStyle = deskStyles[next].id
+				a.changed()
+				a.toast = "桌面歌词：" + deskStyles[next].label
+			}, func() {
+				ring := white.Alpha(0.35)
+				switch {
+				case look.pill.A > 0:
+					ring = look.pill.Alpha(1)
+				case look.edge.A > 0:
+					ring = look.edge
+				}
+				ui.Box(c).Size(12, 12).Radius(999).Background(look.sung).Border(2.5, ring).Shadow(0, 0, 0, 1, white.Alpha(0.25))
+				ui.Text(c, deskStyles[style].label).FontSize(12).FontWeight(600).SingleLine()
+			})
+			rule()
+			// The size, between a small A and a large one.
+			chip("smaller", "歌词字号减小", 28, hover, func() { size(-0.1) }, func() {
+				ui.Text(c, "A").FontSize(11).FontWeight(700)
+			})
+			chip("larger", "歌词字号增大", 28, hover, func() { size(0.1) }, func() {
+				ui.Text(c, "A").FontSize(16).FontWeight(700)
+			})
+			rule()
+			chip("lock", "锁定桌面歌词", 28, hover, func() {
+				s.DeskLock = true
+				a.applyDeskLyrics()
+				a.changed()
+				a.toast = "桌面歌词已锁定，可在设置或托盘菜单解锁"
+			}, func() { ui.Icon(c, iconLock).Size(13, 13) })
+			chip("close", "关闭桌面歌词", 28, ui.RGBA(232, 66, 63, 0.9), a.toggleDeskLyrics, func() {
+				ui.Icon(c, iconX).Size(13, 13)
+			})
 		})
-		chip("smaller", "A−", "歌词字号减小", 28, func() { size(-0.1) })
-		chip("larger", "A+", "歌词字号增大", 28, func() { size(0.1) })
-		if iconButton(c.Key("lock"), iconLock, 13, white.Alpha(0.9), "锁定桌面歌词").Size(28, 24).Clicked() {
-			s.DeskLock = true
-			a.applyDeskLyrics()
-			a.changed()
-			a.toast = "桌面歌词已锁定，可在设置或托盘菜单解锁"
-		}
-		if iconButton(c.Key("close"), iconX, 13, white.Alpha(0.9), "关闭桌面歌词").Size(28, 24).Clicked() {
-			a.toggleDeskLyrics()
-		}
 	})
 }
 

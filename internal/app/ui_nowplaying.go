@@ -209,9 +209,12 @@ func (a *app) nowPlayingBody(c *ui.Context, tr *netease.Track, art *artwork, acc
 		padX := npSideX(w)
 		tabs := npTabsRow(c, w)
 		reveal(tabs, pointerIn).Children(func() { a.paneTabs(c, tabs) })
-		ui.Row(c).Grow(1).Padding(0, padX, 44, padX).Gap(72).AlignItems(ui.Stretch).Children(func() {
+		row := ui.Row(c.Key("np-row")).Grow(1).Padding(0, padX, 44, padX).Gap(72).AlignItems(ui.Stretch)
+		row.Children(func() {
 			var coverTop float32
-			ui.Column(c).Width(side).Justify(ui.Center).Gap(0).Children(func() {
+			var volume ui.Element
+			col := ui.Column(c.Key("np-side")).Width(side).Justify(ui.Center).Gap(0)
+			col.Children(func() {
 				coverTop = ui.Box(c.Key("cover-top")).Height(0).LayoutBounds().Y
 				a.npCover(c, tr, art, coverSize)
 
@@ -250,10 +253,11 @@ func (a *app) nowPlayingBody(c *ui.Context, tr *netease.Track, art *artwork, acc
 					a.playFlies = nil
 					a.npSpot.play = a.playSpot
 				})
-				ui.Row(c).Justify(ui.Center).Children(func() {
+				volume = ui.Row(c.Key("np-volume")).Justify(ui.Center).Children(func() {
 					a.volumeSlider(c, white.Alpha(0.7), white.Alpha(0.18), 180)
 				})
 			})
+			tools := false
 
 			pane := ui.Column(c.Key("pane")).Grow(1).Basis(0).MinWidth(0)
 			pane.Children(func() {
@@ -272,7 +276,7 @@ func (a *app) nowPlayingBody(c *ui.Context, tr *netease.Track, art *artwork, acc
 				ui.Box(c).Height(a.npPaneTop)
 				switch a.npPane {
 				case paneLyrics:
-					a.lyricsPane(c, tr, h)
+					tools = a.lyricsPane(c, tr, h)
 				case paneComments:
 					a.commentsPane(c, tr)
 				case paneProgram:
@@ -283,6 +287,16 @@ func (a *app) nowPlayingBody(c *ui.Context, tr *netease.Track, art *artwork, acc
 					a.queuePane(c)
 				}
 			})
+			// The lyrics' tools go under the volume, in the room the column
+			// leaves at its foot: out of its flow, which moves nothing in it.
+			if tools {
+				r, s, v := row.LayoutBounds(), col.LayoutBounds(), volume.LayoutBounds()
+				if v.H == 0 {
+					c.AnimationFrame() // not laid out yet: the next frame places them
+					return
+				}
+				a.lyricTools(c, tr.ID, ui.Rect{X: s.X - r.X, Y: v.Y + v.H - r.Y + 12, W: s.W})
+			}
 		})
 	}
 }
@@ -499,7 +513,9 @@ func (a *app) paneTab(c *ui.Context, i int, label string) ui.Element {
 	return b
 }
 
-func (a *app) lyricsPane(c *ui.Context, tr *netease.Track, h float32) {
+// lyricsPane shows the lyrics of tr, and reports whether it has any, for
+// their tools to show with them.
+func (a *app) lyricsPane(c *ui.Context, tr *netease.Track, h float32) bool {
 	pl := a.pl
 	lines, loaded := pl.Lyrics()
 	if len(lines) == 0 {
@@ -517,7 +533,7 @@ func (a *app) lyricsPane(c *ui.Context, tr *netease.Track, h float32) {
 			ui.Text(c, "纯音乐，请欣赏").FontSize(24).FontWeight(700).TextColor(white.Alpha(0.4))
 		})
 		a.quietCard(c, dim, h*0.18)
-		return
+		return false
 	}
 	shift := a.lyricShift(tr.ID)
 	pos := pl.Position() + shift
@@ -538,9 +554,9 @@ func (a *app) lyricsPane(c *ui.Context, tr *netease.Track, h float32) {
 		// Under the hot comment, gone, not drawn faint.
 		scroll.Invisible()
 	}
-	defer a.lyricTools(c, tr.ID)
 	defer a.quietCard(c, dim, h*0.18)
 	a.timedLines(c, scroll, lines, pos, cur, lag, linesStyle{size: 30 * a.lyricScale(), weight: 800, lineHeight: 1.25, quiet: quiet, shift: shift}, nil)
+	return true
 }
 
 // linesStyle is how timedLines sets its lines: the size, weight and

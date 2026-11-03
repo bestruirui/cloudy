@@ -22,7 +22,7 @@ nya 维护的第三方网易云音乐桌面客户端，基于 [egoist/mygo-cloud
 
 ## 下载
 
-到 [Releases](https://github.com/nya-owo/mygo-nya/releases) 下载。安装包没有代码签名，Windows 可能提示“已保护你的电脑”，点“更多信息”后选“仍要运行”。
+到 [Releases](https://github.com/nya-owo/mygo-nya/releases) 下载。目前只提供 Windows 版本（x64 和 ARM64）。安装包没有代码签名，Windows 可能提示“已保护你的电脑”，点“更多信息”后选“仍要运行”。
 
 ## 原项目的功能
 
