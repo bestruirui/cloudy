@@ -79,6 +79,25 @@ func TestCheckForUpdatesFromSettings(t *testing.T) {
 	}
 }
 
+// Cloud-nya's data moves to Cloudy's directory, rather than the data of the
+// name before it, kept beside it too.
+func TestMoveFromCloudNya(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "Cloudy")
+	for name, text := range map[string]string{lastName: "nya", oldName: "older"} {
+		os.MkdirAll(filepath.Join(root, name), 0o700)
+		os.WriteFile(filepath.Join(root, name, "settings.json"), []byte(text), 0o600)
+	}
+	os.MkdirAll(dir, 0o700)
+	moveFromOldNames(dir)
+	if b, _ := os.ReadFile(filepath.Join(dir, "settings.json")); string(b) != "nya" {
+		t.Fatalf("settings %q after moving", b)
+	}
+	if _, err := os.Stat(filepath.Join(root, oldName, "settings.json")); err != nil {
+		t.Fatalf("the older data went too: %v", err)
+	}
+}
+
 // The data kept under the app's old name moves to the directory of its
 // name, which Path made empty, but not over data kept there already.
 func TestMoveOldData(t *testing.T) {

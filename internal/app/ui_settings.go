@@ -358,7 +358,7 @@ func (a *app) settingsBody(c *ui.Context) {
 						setUpdateChecks(on)
 					}
 				})
-				row("当前版本 "+mygo.App.Version(), "由 nya 维护，新版本来自 GitHub 的 nya-owo/mygo-nya", func() {
+				row("当前版本 "+mygo.App.Version(), "由 nya 维护，新版本来自 GitHub 的 nya-owo/cloudy", func() {
 					if ui.Button(c.Key("check-updates"), "检查更新").Clicked() {
 						checkForUpdates()
 					}

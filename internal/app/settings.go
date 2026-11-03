@@ -126,17 +126,28 @@ func settingsPath() (string, error) {
 // kept its data under.
 const oldName = "网易云音乐"
 
-// moveOldData moves the user data and the song cache kept under oldName to
-// the directories of the app's name, unless those hold something already:
+// lastName is what the app was called before Cloudy. The identifier stayed
+// as it was then, so the login, kept under it, goes on by itself.
+const lastName = "Cloud-nya"
+
+// moveOldData moves the user data and the song cache kept under an old name
+// to the directories of the app's name, unless those hold something already:
 // the login, settings and where playback was left go on. It must run before
 // anything reads them.
 func moveOldData() {
 	for _, name := range []mygo.PathName{mygo.PathUserData, mygo.PathCache} {
-		dir, err := mygo.App.Path(name)
-		if err != nil {
-			continue
+		if dir, err := mygo.App.Path(name); err == nil {
+			moveFromOldNames(dir)
 		}
-		moveDir(filepath.Join(filepath.Dir(dir), oldName), dir)
+	}
+}
+
+// moveFromOldNames moves to dir what is kept beside it under the latest of
+// the app's old names that has any: once one has moved, dir holds something
+// and the older ones stay where they are.
+func moveFromOldNames(dir string) {
+	for _, old := range []string{lastName, oldName} {
+		moveDir(filepath.Join(filepath.Dir(dir), old), dir)
 	}
 }
 

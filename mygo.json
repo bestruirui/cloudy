@@ -1,12 +1,12 @@
 {
-  "name": "Cloud-nya",
+  "name": "Cloudy",
   "identifier": "io.github.nya-owo.cloud-nya",
-  "slug": "cloud-nya",
+  "slug": "cloudy",
   "version": "1.1.1",
   "out": "build",
   "updates": {
     "publicKey": "F3Su/2E+0t0xrBajRl0Ial0MP4+CxMihdafm/ujNAZg=",
-    "github": "nya-owo/mygo-nya"
+    "github": "nya-owo/cloudy"
   },
   "macos": {
     "icon": "icon/AppIcon.icon",

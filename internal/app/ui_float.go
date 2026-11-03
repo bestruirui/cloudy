@@ -40,7 +40,7 @@ func miniSpot(x, y int) (int, int) {
 	return wa.X + wa.Width - miniW - 24, wa.Y + wa.Height - miniH - 24
 }
 
-// floatWindow opens a window of Cloud-nya's that floats over the others, on
+// floatWindow opens a window of the app's that floats over the others, on
 // nothing, its corners its content's. On the tray's icon if it has one, as a
 // flyout: on Windows only those show what is behind what native UI leaves
 // clear, and they never take the keyboard from the app in use. It closes only
@@ -191,7 +191,7 @@ func (a *app) deskView(c *ui.Context) {
 			tr := pl.Current()
 			switch {
 			case tr == nil:
-				a.deskLine(c, "main", "Cloud-nya", nil, pos, 30*scale, look, true)
+				a.deskLine(c, "main", mygo.App.Name(), nil, pos, 30*scale, look, true)
 			case len(lines) == 0 || cur < 0:
 				a.deskLine(c, "main", tr.Name, nil, pos, 30*scale, look, true)
 			default:
