@@ -67,14 +67,17 @@ type app struct {
 	// answered, and those asked about: see ui_like.go.
 	likedPrograms, askedPrograms map[int64]bool
 
-	daily       []netease.Track
-	dailySpin   spinState // the record on the daily card
-	dailyBars   barState  // the bars on its play button
-	featured    []netease.Playlist
-	charts      []netease.Playlist
-	homeErr     string
-	homeLoading bool
-	homeAt      time.Time // when what the home page shows was asked for
+	daily             []netease.Track
+	dailySpin         spinState // the record on the daily card
+	dailyBars         barState  // the bars on its play button
+	featured          []netease.Playlist
+	playlistFilter    int
+	playlistPill      ui.Rect
+	filteredPlaylists [len(playlistFilters)]*playlistBrowseData
+	charts            []netease.Playlist
+	homeErr           string
+	homeLoading       bool
+	homeAt            time.Time // when what the home page shows was asked for
 
 	playlists  map[int64]*netease.Playlist
 	loadingPl  map[int64]bool

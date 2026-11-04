@@ -143,3 +143,25 @@ func TestFMCoverRestFrames(t *testing.T) {
 		}
 	}
 }
+
+// The category capsule asks for no frames once it has reached its selected label.
+func TestPlaylistFilterRestFrames(t *testing.T) {
+	a := newTestApp()
+	a.settings = defaultSettings()
+	a.motion = motionFull
+	a.featured = []netease.Playlist{{ID: 1}}
+	tt := ui.NewTester(func(c *ui.Context) {
+		a.pal = paletteFor(c.Theme())
+		a.recommendedPlaylists(c)
+	}, 1180, 700)
+	tt.Frame()
+	tt.Frame()
+	tt.Advance(3 * time.Second)
+	tt.Frame()
+	for range 10 {
+		tt.Advance(100 * time.Millisecond)
+		if tt.FramePending() {
+			t.Fatal("the settled category capsule still asks for frames")
+		}
+	}
+}

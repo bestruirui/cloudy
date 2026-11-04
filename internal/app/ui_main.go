@@ -443,6 +443,7 @@ func (a *app) centered(c *ui.Context, err string, retry func()) {
 
 func (a *app) loadHome() {
 	a.homeLoading, a.homeErr = true, ""
+	a.filteredPlaylists = [len(playlistFilters)]*playlistBrowseData{}
 	signedIn := a.profile != nil
 	at := time.Now()
 	go func() {

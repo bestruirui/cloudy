@@ -74,12 +74,7 @@ func (a *app) homePage(c *ui.Context) {
 			}
 		})
 
-		a.section(c, "推荐歌单")
-		ui.Grid(c).Columns(a.columns(c, 168)).GapX(20).GapY(28).Children(func() {
-			for i := range a.featured {
-				a.playlistCard(c.Key(a.featured[i].ID), &a.featured[i])
-			}
-		})
+		a.recommendedPlaylists(c)
 	})
 }
 
