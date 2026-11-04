@@ -456,7 +456,8 @@ func SongURL(id int64, level string) (*Stream, error) {
 
 // Lyrics returns a track's timed lyrics, their translation if any, and
 // its word-timed lyrics (YRC) where NetEase has them, which only the
-// desktop client's API serves.
+// desktop client's API serves. The web API answers some songs with no
+// lyrics that the desktop client's has: their lines come from it then.
 func Lyrics(id int64) (lrc, translation, yrc string, err error) {
 	var res struct {
 		Lrc struct {
@@ -471,6 +472,12 @@ func Lyrics(id int64) (lrc, translation, yrc string, err error) {
 		return "", "", "", err
 	}
 	var words struct {
+		Lrc struct {
+			Lyric string `json:"lyric"`
+		} `json:"lrc"`
+		Tlyric struct {
+			Lyric string `json:"lyric"`
+		} `json:"tlyric"`
 		Yrc struct {
 			Lyric string `json:"lyric"`
 		} `json:"yrc"`
@@ -479,7 +486,14 @@ func Lyrics(id int64) (lrc, translation, yrc string, err error) {
 	if eapiPost("/api/song/lyric/v1", data, &words) == nil {
 		yrc = words.Yrc.Lyric
 	}
-	return res.Lrc.Lyric, res.Tlyric.Lyric, yrc, nil
+	lrc, translation = res.Lrc.Lyric, res.Tlyric.Lyric
+	if lrc == "" {
+		lrc = words.Lrc.Lyric
+	}
+	if translation == "" {
+		translation = words.Tlyric.Lyric
+	}
+	return lrc, translation, yrc, nil
 }
 
 // Sized asks the image CDN for a picture of n×n pixels.

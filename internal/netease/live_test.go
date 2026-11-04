@@ -278,3 +278,18 @@ func TestProgramCommentsLive(t *testing.T) {
 		t.Errorf("no answer of %d: %v", ids[1], liked)
 	}
 }
+
+func TestLyricsFromEapiLive(t *testing.T) {
+	if os.Getenv("LIVE") == "" {
+		t.Skip()
+	}
+	// The web API answered 离开我以后 with no lyrics, so it showed as pure music although the desktop client's API has them.
+	deviceOnce.Do(func() { deviceID = "0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123" })
+	lrc, _, _, err := Lyrics(3411400442)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lrc == "" {
+		t.Fatal("no lyrics")
+	}
+}
