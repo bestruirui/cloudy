@@ -1,6 +1,11 @@
 package app
 
 import (
+	"image"
+	"image/color"
+	"image/png"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -59,5 +64,81 @@ func TestExitHeartMode(t *testing.T) {
 	}
 	if a.pl.Radio() != "" || a.pl.Current().ID != 1 {
 		t.Fatalf("from Now Playing: radio %q, current %v", a.pl.Radio(), a.pl.Current())
+	}
+}
+
+// The cover behind the current song is the one Next plays, even after shuffling.
+func TestFMNextCoverFollowsPlayback(t *testing.T) {
+	a := newTestApp()
+	a.settings = defaultSettings()
+	a.pl.Cue([]netease.Track{{ID: 1, Name: "一"}, {ID: 2, Name: "二"}, {ID: 3, Name: "三"}, {ID: 4, Name: "四"}})
+	a.pl.AttachRadio(fmRadio(netease.FMDefault), func(func([]netease.Track)) {})
+	a.pl.ToggleShuffle()
+	tt := ui.NewTester(a.fmCard, 1000, 400)
+	tt.Frame()
+	for range 2 {
+		next := a.pl.NextIndex()
+		if next < 0 {
+			t.Fatal("the radio has no next song")
+		}
+		want := a.pl.Queue()[next]
+		if _, ok := tt.Find("下一首封面：" + want.Name); !ok {
+			t.Fatalf("the cover behind does not show %s", want.Name)
+		}
+		if err := tt.Click("下一首"); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+		if got := a.pl.Current(); got.ID != want.ID {
+			t.Fatalf("played %s after showing %s", got.Name, want.Name)
+		}
+		if _, ok := tt.Find("当前封面：" + want.Name); !ok {
+			t.Fatalf("the next cover did not become current: %s", want.Name)
+		}
+		tt.Advance(time.Second)
+		tt.Frame()
+	}
+}
+
+// With NM_FRAMES set, saves the FM stack before and during a change of song.
+func TestFMCoverFrames(t *testing.T) {
+	dir := os.Getenv("NM_FRAMES")
+	if dir == "" {
+		t.Skip()
+	}
+	a := newTestApp()
+	a.settings = defaultSettings()
+	tracks := []netease.Track{{ID: 1, Name: "一"}, {ID: 2, Name: "二"}, {ID: 3, Name: "三"}}
+	colors := []color.RGBA{{220, 65, 65, 255}, {65, 145, 220, 255}, {75, 190, 120, 255}}
+	for i := range tracks {
+		tracks[i].Album.PicURL = "https://example.com/cover" + tracks[i].Name
+		img := image.NewRGBA(image.Rect(0, 0, 64, 64))
+		for y := range 64 {
+			for x := range 64 {
+				img.SetRGBA(x, y, colors[i])
+			}
+		}
+		a.art.add(netease.Sized(tracks[i].Album.PicURL, 600), &artwork{bmp: ui.NewBitmap(img), used: time.Now(), size: 1})
+	}
+	a.pl.Cue(tracks)
+	a.pl.AttachRadio(fmRadio(netease.FMDefault), func(func([]netease.Track)) {})
+	tt := ui.NewTester(a.fmCard, 1000, 400)
+	tt.Frame()
+	tt.Advance(time.Second)
+	for i, elapsed := range []time.Duration{0, 60 * time.Millisecond, 140 * time.Millisecond, 500 * time.Millisecond} {
+		if i == 1 {
+			a.pl.Next()
+			tt.Frame()
+		}
+		tt.Advance(elapsed)
+		tt.Frame()
+		f, err := os.Create(filepath.Join(dir, []string{"fm-before.png", "fm-60ms.png", "fm-200ms.png", "fm-rest.png"}[i]))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := png.Encode(f, tt.Image()); err != nil {
+			t.Fatal(err)
+		}
+		f.Close()
 	}
 }

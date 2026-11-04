@@ -388,40 +388,56 @@ func (a *app) fmCard(c *ui.Context) {
 	})
 }
 
-// fmCovers stacks the cover playing over the next one's, which peeks out
-// behind it, tilted, as the FM's own player shows them.
+// fmCoverKey keeps each queued cover's identity as it moves through the stack.
+type fmCoverKey struct {
+	id    int64
+	index int
+}
+
+// fmCovers lets the next queued cover come forward as the current one leaves.
 func (a *app) fmCovers(c *ui.Context, tr *netease.Track) {
 	const size = 232
 	ui.Box(c).Size(size+36, size).Shrink(0).Children(func() {
-		var next *netease.Track
-		if tr != nil {
-			if order, at := a.pl.PlayOrder(); at >= 0 && at+1 < len(order) {
-				next = &a.pl.Queue()[order[at+1]]
-			}
-		}
-		if next != nil {
-			back := ui.Box(c.Key(next.ID)).Absolute().Top(16).Left(36).Size(size-32, size-32).Radius(14).Opacity(0.55).Background(white.Alpha(0.12)).
-				Shadow(0, 10, 24, -8, ui.RGBA(0, 0, 0, 0.4))
-			back.AnimatePose(ui.Pose{Rotate: 6, X: 14}, ui.Animation{Spring: ui.SpringOptions{Duration: 500 * time.Millisecond, Bounce: 0.2}})
-			back.Children(func() { a.coverFill(c, next.Album.PicURL, 400, 14) })
-		}
-		front := ui.Box(c.Key("front")).Absolute().Top(0).Left(0).Size(size, size).Radius(14).
-			Background(white.Alpha(0.12)).Shadow(0, 20, 44, -10, ui.RGBA(0, 0, 0, 0.55))
 		if tr == nil {
-			front.Center().Children(func() {
+			ui.Box(c.Key("empty")).Absolute().Top(0).Left(0).Size(size, size).Radius(14).
+				Background(white.Alpha(0.12)).Center().Children(func() {
 				ui.Icon(c, iconRadio).Size(64, 64).TextColor(white.Alpha(0.85))
 			})
 			return
 		}
-		scale := float32(1)
-		if !a.pl.Playing() {
-			scale = 0.94
+		queue := a.pl.Queue()
+		order, at := a.pl.PlayOrder()
+		if at < 0 || at >= len(order) {
+			return
 		}
-		front.AnimatePose(ui.Pose{Scale: scale}, ui.Animation{Spring: ui.SpringOptions{Duration: 600 * time.Millisecond, Bounce: 0.25}})
-		front.Children(func() {
-			ui.Box(c.Key(tr.ID)).Fill().Transition(ui.ElementTransition{Animation: &ui.Snappy, Enter: &ui.Motion{Scale: 0.92}}).
-				Children(func() { a.coverFill(c, tr.Album.PicURL, 600, 14) })
-		})
+		current, next := order[at], a.pl.NextIndex()
+		animation := ui.Animation{Spring: ui.SpringOptions{Duration: 500 * time.Millisecond, Bounce: 0.12}}
+		draw := func(index int, front bool) {
+			t := &queue[index]
+			top, left, side := float32(16), float32(36), float32(size-32)
+			pose := ui.Pose{X: 14, Rotate: 6, Fade: 0.45}
+			label := "下一首封面：" + t.Name
+			if front {
+				top, left, side = 0, 0, size
+				pose = ui.Pose{}
+				if !a.pl.Playing() {
+					pose.Scale = 0.94
+				}
+				label = "当前封面：" + t.Name
+			}
+			cover := ui.Box(c.Key(fmCoverKey{t.ID, index})).Absolute().Top(top).Left(left).Size(side, side).
+				Radius(14).Label(label).Background(white.Alpha(0.12)).
+				Shadow(0, 20, 44, -10, ui.RGBA(0, 0, 0, 0.55)).
+				Transition(ui.ElementTransition{Animation: &animation,
+					Enter: &ui.Motion{X: 18, Scale: 0.94},
+					Exit:  &ui.Motion{X: -80, Scale: 0.94}})
+			cover.AnimatePose(pose, animation)
+			cover.Children(func() { a.coverFill(c, t.Album.PicURL, 600, 14) })
+		}
+		if next >= 0 && next != current {
+			draw(next, false)
+		}
+		draw(current, true)
 	})
 }
 

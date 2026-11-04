@@ -396,18 +396,39 @@ func (p *Player) AudioOpener() func(context.Context) (Audio, error) {
 // current track is among them, -1 for none.
 func (p *Player) PlayOrder() ([]int, int) { return p.order, p.at }
 
-func (p *Player) Next() {
+// nextPosition is where Next will go in the play order, or -1 while a
+// radio needs to wait for its feed.
+func (p *Player) nextPosition() int {
 	if len(p.order) == 0 {
-		return
+		return -1
 	}
 	at := p.at + 1
 	if at >= len(p.order) {
 		if p.feed != nil {
-			p.stop()
-			p.awaitFeed()
-			return
+			return -1
 		}
 		at = 0
+	}
+	return at
+}
+
+// NextIndex returns the queue index Next will play, or -1 when it must wait.
+func (p *Player) NextIndex() int {
+	if at := p.nextPosition(); at >= 0 {
+		return p.order[at]
+	}
+	return -1
+}
+
+func (p *Player) Next() {
+	if len(p.order) == 0 {
+		return
+	}
+	at := p.nextPosition()
+	if at < 0 {
+		p.stop()
+		p.awaitFeed()
+		return
 	}
 	p.load(at)
 }

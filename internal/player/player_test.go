@@ -20,6 +20,25 @@ func TestPlayEmptyQueue(t *testing.T) {
 	}
 }
 
+// The next cover must use the same order as Next and disappear at a radio's end.
+func TestNextIndexUsesPlayOrder(t *testing.T) {
+	p := &Player{at: -1}
+	p.Cue([]netease.Track{{ID: 1}, {ID: 2}, {ID: 3}})
+	p.order = []int{0, 2, 1}
+	p.AttachRadio("fm:DEFAULT", func(func([]netease.Track)) {})
+	if got := p.NextIndex(); got != 2 {
+		t.Fatalf("next index = %d, want 2", got)
+	}
+	p.at = 2
+	if got := p.NextIndex(); got != -1 {
+		t.Fatalf("next index at the radio's end = %d, want -1", got)
+	}
+	p.endRadio()
+	if got := p.NextIndex(); got != 0 {
+		t.Fatalf("next index after leaving the radio = %d, want 0", got)
+	}
+}
+
 // silence is a long song of nothing.
 type silence struct{}
 
