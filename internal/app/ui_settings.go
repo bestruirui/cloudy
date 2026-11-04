@@ -348,7 +348,7 @@ func (a *app) settingsBody(c *ui.Context) {
 
 		if a.updates {
 			group("更新", func() {
-				desc := "每天检查一次是否有新版本，只提醒，不会自动安装"
+				desc := "每天检查一次是否有新版本"
 				if t := lastUpdateCheck(); !t.IsZero() {
 					desc += "；上次检查：" + commentTime(t, time.Now())
 				}
@@ -358,6 +358,16 @@ func (a *app) settingsBody(c *ui.Context) {
 						setUpdateChecks(on)
 					}
 				})
+				// Installing in the background goes with the checks there,
+				// which find what it installs.
+				if updateChecks() {
+					row("自动安装更新", "在后台下载并装好新版本，不弹窗，下次打开软件时生效", func() {
+						on := updateDownloads()
+						if ui.Switch(c.Key("update-downloads"), &on).Label("自动安装更新").Changed() {
+							setUpdateDownloads(on)
+						}
+					})
+				}
 				row("当前版本 "+mygo.App.Version(), "由 nya 维护，新版本来自 GitHub 的 nya-owo/cloudy", func() {
 					if ui.Button(c.Key("check-updates"), "检查更新").Clicked() {
 						checkForUpdates()

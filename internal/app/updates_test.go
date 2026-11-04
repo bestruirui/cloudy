@@ -29,10 +29,10 @@ func fakeUpdater(checks, downloads *bool, checked *int) func() {
 	}
 }
 
-// Turning off the reminder turns checking off in the updater, and nothing in
-// the settings turns on installing without asking: the app is a modified
-// build, which an update would take the changes out of.
-func TestTurnOffUpdateChecks(t *testing.T) {
+// 自动安装更新 has the updater install updates without asking, and turning
+// off the reminder turns checking off in it and takes the choice away too,
+// as nothing would find the updates to install.
+func TestUpdateSettings(t *testing.T) {
 	checks, downloads, checked := true, false, 0
 	defer fakeUpdater(&checks, &downloads, &checked)()
 	a := newTestApp()
@@ -52,12 +52,16 @@ func TestTurnOffUpdateChecks(t *testing.T) {
 		tt.ClickAt(560-24-16-12, (top.Y+bottom.Y+bottom.H)/2)
 		tt.Frame()
 	}
-	toggle("提醒新版本", "每天检查一次是否有新版本，只提醒，不会自动安装")
+	toggle("自动安装更新", "在后台下载并装好新版本，不弹窗，下次打开软件时生效")
+	if !downloads {
+		t.Fatal("still asks before installing updates")
+	}
+	toggle("提醒新版本", "每天检查一次是否有新版本")
 	if checks {
 		t.Fatal("checks for updates still")
 	}
-	if tt.HasText("自动下载并安装") {
-		t.Error("the settings offer installing updates without asking")
+	if tt.HasText("自动安装更新") {
+		t.Error("offers installing updates with no checks to find them")
 	}
 }
 

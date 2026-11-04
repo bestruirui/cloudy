@@ -259,11 +259,6 @@ func Run() error {
 		a.settings = loadSettings()
 		a.settings.applyAppearance()
 		a.loadFont()
-		// The app is a modified build: what an update installs would take the
-		// changes away, so it asks, whatever was set before.
-		if a.updates {
-			setUpdateDownloads(false)
-		}
 		a.npPane = a.lyricsPaneChosen()
 		// Before the window: on Windows it lays out its content as it is
 		// made, and the view asks the player what plays.

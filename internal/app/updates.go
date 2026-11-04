@@ -19,7 +19,8 @@ var (
 
 // useUpdater checks GitHub's releases for a new version soon after launch
 // and then once a day, and offers it in an update window of native UI, in
-// Chinese. It must run before App.Run.
+// Chinese; or, when the listener chose to, installs it in the background,
+// for the next launch. It must run before App.Run.
 func (a *app) useUpdater() {
 	mygo.Use(native.New(updater.Options{Language: "zh-Hans"}))
 	a.updates = true
