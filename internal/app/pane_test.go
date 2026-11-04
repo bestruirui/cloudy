@@ -38,13 +38,13 @@ func TestSettingsOverTheWindow(t *testing.T) {
 	tt.Frame()
 	a.openSettings()
 	tt.Frame()
-	if !tt.HasText("视觉效果") {
+	if _, ok := tt.Find("设置分类：常规"); !ok {
 		t.Fatalf("the settings did not open: %q", tt.Texts())
 	}
 	tt.Key(0, ui.KeyEscape)
 	tt.Advance(time.Second)
 	tt.Frame()
-	if a.settingsOpen || tt.HasText("视觉效果") {
+	if _, ok := tt.Find("设置分类：常规"); a.settingsOpen || ok {
 		t.Error("Escape did not close the settings")
 	}
 }

@@ -181,13 +181,15 @@ type app struct {
 	sig                   playerSig
 	quitting              bool
 
-	settings      settings
-	settingsOpen  bool
-	settingsDirty bool            // a slider moved, and the settings are not kept yet
-	cacheUsed     int64           // the bytes the song cache takes, -1 until measured
-	updates       bool            // the update plugin is used (useUpdater)
-	fontList      []uiFont        // the fonts on offer here (fontChoices)
-	fontsLoaded   map[string]bool // the fonts of files registered, by id (loadFont)
+	settings       settings
+	settingsOpen   bool
+	settingsTab    settingsCategory
+	settingsScroll [settingsCategoryCount]ui.ScrollState
+	settingsDirty  bool            // a slider moved, and the settings are not kept yet
+	cacheUsed      int64           // the bytes the song cache takes, -1 until measured
+	updates        bool            // the update plugin is used (useUpdater)
+	fontList       []uiFont        // the fonts on offer here (fontChoices)
+	fontsLoaded    map[string]bool // the fonts of files registered, by id (loadFont)
 
 	restored     bool   // playback picked up where it was left
 	savedSession string // the session as last kept
