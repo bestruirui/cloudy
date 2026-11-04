@@ -22,10 +22,11 @@ var (
 
 // loadLiked loads the listener's liked songs.
 func (a *app) loadLiked(uid int64) {
+	gen := a.accountGen
 	go func() {
 		ids, err := netease.LikedIDs(uid)
 		a.post(func() {
-			if err != nil || a.profile == nil || a.profile.UserID != uid {
+			if err != nil || gen != a.accountGen || a.profile == nil || a.profile.UserID != uid {
 				return
 			}
 			a.liked = make(map[int64]bool, len(ids))
@@ -53,38 +54,24 @@ func (a *app) toggleLike(tr *netease.Track) {
 		a.liked = map[int64]bool{}
 	}
 	id, like := tr.ID, !a.liked[tr.ID]
+	gen := a.accountGen
 	a.setLiked(id, like)
 	go func() {
 		err := likeSong(id, like)
 		a.post(func() {
-			if err != nil {
-				a.setLiked(id, !like)
-				a.toast = "操作失败，请稍后再试"
-				return
-			}
-			// The liked songs' playlist changed: load it anew when shown.
-			for _, pl := range a.mine {
-				if pl.SpecialType == 5 {
-					delete(a.playlists, pl.ID)
-					if a.route.page == pagePlaylist && a.route.id == pl.ID {
-						a.loadPlaylist(pl.ID, false)
-					}
-				}
-			}
+			a.likeAnswered(gen, id, like, err)
 		})
 	}()
 }
 
 func (a *app) toggleProgramLike(id int64) {
 	like := !a.likedPrograms[id]
+	gen := a.accountGen
 	a.setProgramLiked(id, like)
 	go func() {
 		err := likeProgram(id, like)
 		a.post(func() {
-			if err != nil {
-				a.setProgramLiked(id, !like)
-				a.toast = "操作失败，请稍后再试"
-			}
+			a.programLikeAnswered(gen, id, like, err)
 		})
 	}()
 }
@@ -119,6 +106,9 @@ func (a *app) likeCurrent() {
 
 func (a *app) setLiked(id int64, like bool) {
 	if like {
+		if a.liked == nil {
+			a.liked = map[int64]bool{}
+		}
 		a.liked[id] = true
 	} else {
 		delete(a.liked, id)
@@ -158,9 +148,14 @@ func (a *app) askProgramLikes(ids []int64) {
 		a.askedPrograms[id] = true
 	}
 	uid := a.profile.UserID
+	gen := a.accountGen
 	go func() {
 		liked, _ := programsLiked(ask)
-		a.post(func() { a.programLikesAnswered(uid, ask, liked) })
+		a.post(func() {
+			if gen == a.accountGen {
+				a.programLikesAnswered(uid, ask, liked)
+			}
+		})
 	}()
 }
 
@@ -267,4 +262,36 @@ func drawBurst(p *ui.Painter, r ui.Rect, size float32, elapsed time.Duration, ac
 		}
 	}
 	return true
+}
+
+// likeAnswered applies a reply only to the login that requested it.
+func (a *app) likeAnswered(gen int, id int64, like bool, err error) {
+	if gen != a.accountGen || a.profile == nil {
+		return
+	}
+	if err != nil {
+		a.setLiked(id, !like)
+		a.toast = "操作失败，请稍后再试"
+		return
+	}
+	// The liked songs' playlist changed: load it anew when shown.
+	for _, pl := range a.mine {
+		if pl.SpecialType == 5 {
+			delete(a.playlists, pl.ID)
+			if a.route.page == pagePlaylist && a.route.id == pl.ID {
+				a.loadPlaylist(pl.ID, false)
+			}
+		}
+	}
+}
+
+// programLikeAnswered applies a reply only to the login that requested it.
+func (a *app) programLikeAnswered(gen int, id int64, like bool, err error) {
+	if gen != a.accountGen || a.profile == nil {
+		return
+	}
+	if err != nil {
+		a.setProgramLiked(id, !like)
+		a.toast = "操作失败，请稍后再试"
+	}
 }

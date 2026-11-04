@@ -503,18 +503,11 @@ func (a *app) loadPlaylist(id int64, thenPlay bool) {
 	}
 	a.loadingPl[id] = true
 	delete(a.plErr, id)
+	gen := a.accountGen
 	go func() {
 		pl, err := netease.PlaylistDetail(id)
 		a.post(func() {
-			delete(a.loadingPl, id)
-			if err != nil {
-				a.plErr[id] = "歌单加载失败"
-				return
-			}
-			a.playlists[id] = pl
-			if thenPlay {
-				a.pl.PlayQueue(pl.Tracks, firstPlayable(pl.Tracks))
-			}
+			a.playlistAnswered(gen, id, pl, err, thenPlay)
 		})
 	}()
 }
@@ -526,4 +519,20 @@ func firstPlayable(tracks []netease.Track) int {
 		}
 	}
 	return 0
+}
+
+// playlistAnswered applies a reply only to the login that requested it.
+func (a *app) playlistAnswered(gen int, id int64, pl *netease.Playlist, err error, thenPlay bool) {
+	if gen != a.accountGen {
+		return
+	}
+	delete(a.loadingPl, id)
+	if err != nil {
+		a.plErr[id] = "歌单加载失败"
+		return
+	}
+	a.playlists[id] = pl
+	if thenPlay {
+		a.pl.PlayQueue(pl.Tracks, firstPlayable(pl.Tracks))
+	}
 }

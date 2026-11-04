@@ -51,6 +51,7 @@ type app struct {
 	forward []route // the pages gone back from, the last first to go to
 
 	profile      *netease.Profile
+	accountGen   int                // rejects results from an earlier login, including the same account
 	mine, saved  []netease.Playlist // the listener's playlists: made, and saved
 	savingPl     map[int64]bool     // the playlists whose saving or its end is on its way
 	recPlaylists []netease.Playlist // the day's playlists picked for the listener
@@ -116,6 +117,7 @@ type app struct {
 
 	fmMode        int    // the FM mode chosen, in fmModes
 	radioStarting string // the radio asked for its first songs, or ""
+	radioGen      int    // distinguishes requests for the same radio
 
 	scrub      float64
 	scrubbing  bool

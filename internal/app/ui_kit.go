@@ -286,6 +286,12 @@ func drawBars(p *ui.Painter, r ui.Rect, st *barState, n int, color ui.Color, min
 // on a capsule that slides to the next as it changes. It reports whether
 // the user chose another.
 func (a *app) segmented(c *ui.Context, selected *int, labels ...string) bool {
+	return a.segmentedControl(c, selected, labels, true, nil)
+}
+
+// segmentedControl can hide its selection while another mode plays, and
+// handles a click on the already selected segment as well as a new one.
+func (a *app) segmentedControl(c *ui.Context, selected *int, labels []string, active bool, pick func(int)) bool {
 	t := c.Theme()
 	const height, inset, radius = 28, 2, 14
 	width := float32(0)
@@ -299,19 +305,26 @@ func (a *app) segmented(c *ui.Context, selected *int, labels ...string) bool {
 	}
 	before := *selected
 	parts := ui.SegmentedBase(c, selected, len(labels))
+	if pick != nil {
+		parts.Track.OnChange(func() { pick(*selected) })
+	}
 	at := parts.Track.AnimateTo("at", float32(*selected), ui.Animation{Spring: ui.SpringOptions{Duration: 280 * time.Millisecond, Bounce: 0.08}})
 	n := len(labels)
+	hasSelection := active && *selected >= 0 && *selected < n
 	dark := t.Dark
 	parts.Track.Height(height).Padding(inset).Radius(radius).Background(track).Draw(func(p *ui.Painter, r ui.Rect) {
 		// Hairlines between segments, but beside the capsule.
 		for i := 1; i < n; i++ {
-			if d := float32(i) - at; d > -1 && d < 2 {
+			if d := float32(i) - at; hasSelection && d > -1 && d < 2 {
 				continue
 			}
 			x := r.X + inset + float32(i)*width
 			p.Fill(ui.Rect{X: x - 0.5, Y: r.Y + 6, W: 1, H: r.H - 12}, divider, 0)
 		}
 		pill := ui.Rect{X: r.X + inset + at*width, Y: r.Y + inset, W: width, H: r.H - 2*inset}
+		if !hasSelection {
+			return
+		}
 		if !dark {
 			p.Shadow(pill, radius-inset, 0, 0.5, 1, 0, ui.RGBA(0, 0, 0, 0.2))
 			p.Shadow(pill, radius-inset, 0, 1, 3, 0, ui.RGBA(0, 0, 0, 0.06))
@@ -324,6 +337,9 @@ func (a *app) segmented(c *ui.Context, selected *int, labels ...string) bool {
 	}).Children(func() {
 		for i, l := range labels {
 			seg := parts.Segment(i).Width(width).Height(height - 2*inset).Center().Radius(radius - inset)
+			if pick != nil {
+				seg.OnClick(func() { pick(i) })
+			}
 			if seg.Pressed() && i != *selected {
 				seg.Background(divider)
 			}

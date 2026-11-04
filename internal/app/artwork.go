@@ -26,6 +26,7 @@ type artwork struct {
 	backdrop *ui.Bitmap
 	tint     ui.Color // the cover's most vivid color
 	failed   bool
+	retryAt  time.Time // a failed request can be tried again after this time
 	used     time.Time // when it was last asked for
 	size     int       // the bytes it keeps: its data, and the backdrop's pixels
 }
@@ -108,14 +109,20 @@ func (c *artCache) get(url string, backdrop bool) *artwork {
 	}
 	now := c.now()
 	if a, ok := c.art[key]; ok {
-		a.used = now
-		return a
+		if !a.failed || now.Before(a.retryAt) {
+			a.used = now
+			return a
+		}
+		delete(c.art, key)
+		c.size -= a.size
 	}
 	if a := c.gone[key].Value(); a != nil {
 		delete(c.gone, key)
-		a.used = now
-		c.add(key, a)
-		return a
+		if !a.failed || now.Before(a.retryAt) {
+			a.used = now
+			c.add(key, a)
+			return a
+		}
 	}
 	if c.busy[key] {
 		return nil
@@ -136,7 +143,8 @@ func (c *artCache) get(url string, backdrop bool) *artwork {
 		c.post(func() {
 			delete(c.busy, key)
 			if err != nil {
-				c.add(key, &artwork{failed: true, used: c.now()})
+				now := c.now()
+				c.add(key, &artwork{failed: true, used: now, retryAt: now.Add(artRetry)})
 				return
 			}
 			a := &artwork{bmp: bmp, tint: tint, used: c.now(), size: size}
@@ -156,6 +164,10 @@ func (c *artCache) get(url string, backdrop bool) *artwork {
 // artRelease is how long a cover keeps its pixels once loaded: past the
 // frame that first shows it, and the smaller copies it shows from there.
 const artRelease = 2 * time.Second
+
+// Failed covers retry after a short backoff, rather than remaining blank
+// until restart or making a new request on every frame while offline.
+const artRetry = 30 * time.Second
 
 // loadArt fetches the cover at url, as a bitmap to draw and an image to
 // measure, with the bytes of its data.

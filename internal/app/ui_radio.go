@@ -15,6 +15,9 @@ import (
 
 const heartRadio = "heart"
 
+// Tests replace the personal feed without signing in to a real account.
+var personalFM = netease.PersonalFM
+
 var fmModes = []struct{ mode, label string }{
 	{netease.FMDefault, "推荐"},
 	{netease.FMFamiliar, "熟悉"},
@@ -29,7 +32,7 @@ func radioLabel(name string) string {
 		return "心动模式"
 	}
 	if isRoam(name) {
-		return "风格漫游 · " + strings.TrimPrefix(name, stylePrefix)
+		return "风格漫游 · " + strings.ReplaceAll(strings.TrimPrefix(name, stylePrefix), "|", " · ")
 	}
 	for _, m := range fmModes {
 		if name == fmRadio(m.mode) {
@@ -68,13 +71,14 @@ func (a *app) radioFeed(name string) func(got func([]netease.Track)) {
 		switch {
 		case strings.HasPrefix(name, "fm:"):
 			mode := strings.TrimPrefix(name, "fm:")
-			fetch = func() ([]netease.Track, error) { return netease.PersonalFM(mode) }
+			fetch = func() ([]netease.Track, error) { return personalFM(mode) }
 		case isRoam(name):
 			label := strings.TrimPrefix(name, stylePrefix)
 			if a.roam == nil {
 				a.roam = &roamer{}
 			}
-			fetch = func() ([]netease.Track, error) { return a.roam.next(label) }
+			roam := a.roam
+			fetch = func() ([]netease.Track, error) { return roam.next(label) }
 		case name == heartRadio:
 			// More like the last song queued, from the song it began with.
 			q, pid := a.pl.Queue(), a.likedPlaylist()
@@ -118,13 +122,12 @@ func (a *app) playFM() {
 
 // startRadio plays the radio name, or says it can't, as failed.
 func (a *app) startRadio(name, failed string) {
-	a.radioStarting = name
+	req := a.requestRadio(name)
 	feed := a.radioFeed(name)
 	feed(func(tracks []netease.Track) {
-		if a.radioStarting != name {
+		if !a.acceptRadio(req) {
 			return
 		}
-		a.radioStarting = ""
 		if len(tracks) == 0 {
 			a.toast = failed
 			return
@@ -133,8 +136,46 @@ func (a *app) startRadio(name, failed string) {
 	})
 }
 
+// A request belongs to one login and one playback selection. Even two
+// requests for the same station must not accept one another's results.
+type radioRequest struct{ gen, playback, account int }
+
+func (a *app) requestRadio(name string) radioRequest {
+	a.radioGen++
+	a.radioStarting = name
+	return radioRequest{a.radioGen, a.pl.RadioGeneration(), a.accountGen}
+}
+
+func (a *app) cancelRadioStart() {
+	a.radioGen++
+	a.radioStarting = ""
+}
+
+func (a *app) acceptRadio(req radioRequest) bool {
+	if req.gen != a.radioGen {
+		return false
+	}
+	a.radioStarting = ""
+	return req.playback == a.pl.RadioGeneration() && req.account == a.accountGen
+}
+
+// chooseFMMode leaves style roaming, including a pending first response.
+func (a *app) chooseFMMode(mode int) {
+	a.fmMode = mode
+	if a.radioStarting == fmRadio(fmModes[mode].mode) {
+		return
+	}
+	on := a.pl.Radio()
+	pending := a.radioStarting != ""
+	a.cancelRadioStart()
+	if strings.HasPrefix(on, "fm:") || isRoam(on) || pending {
+		a.playFM()
+	}
+}
+
 // exitRadio stops the radio playing, but not the song it plays.
 func (a *app) exitRadio() {
+	a.cancelRadioStart()
 	name := a.pl.Radio()
 	if name == "" {
 		return
@@ -187,7 +228,7 @@ func (a *app) startHeartMode() {
 		seed, fromPlaying = &s, true
 	}
 	liked := a.playlists[pid]
-	a.radioStarting = heartRadio
+	req := a.requestRadio(heartRadio)
 	go func() {
 		if seed == nil {
 			if liked == nil {
@@ -205,10 +246,9 @@ func (a *app) startHeartMode() {
 			more, err = netease.HeartMode(seed.ID, seed.ID, pid)
 		}
 		a.post(func() {
-			if a.radioStarting != heartRadio {
+			if !a.acceptRadio(req) {
 				return
 			}
-			a.radioStarting = ""
 			if seed == nil || err != nil {
 				a.toast = "心动模式暂时无法开启，请稍后再试"
 				return
@@ -231,9 +271,13 @@ func (a *app) fmPage(c *ui.Context) {
 	ui.Scroll(c.Key("fm")).TrackScroll(&a.pageScroll).Grow(1).Padding(top+pageGap, pagePad, bottom+48, pagePad).ScrollbarInsets(top, 0, bottom, 0).Children(func() {
 		a.startMark(c)
 		defer a.endMark(c)
-		// The mode the FM plays in, if it plays.
+		// Keep a pending choice visible while the previous station plays on.
+		chosen := a.radioStarting
+		if chosen == "" {
+			chosen = a.pl.Radio()
+		}
 		for i, m := range fmModes {
-			if a.pl.Radio() == fmRadio(m.mode) {
+			if chosen == fmRadio(m.mode) {
 				a.fmMode = i
 			}
 		}
@@ -245,13 +289,8 @@ func (a *app) fmPage(c *ui.Context) {
 				for i, m := range fmModes {
 					labels[i] = m.label
 				}
-				if a.segmented(c.Key("fm-mode"), &mode, labels...) {
-					a.fmMode = mode
-					// Playing the FM, it changes to the mode at once.
-					if strings.HasPrefix(a.pl.Radio(), "fm:") {
-						a.playFM()
-					}
-				}
+				active := !isRoam(chosen)
+				a.segmentedControl(c.Key("fm-mode"), &mode, labels, active, a.chooseFMMode)
 			})
 		})
 		a.fmCard(c)

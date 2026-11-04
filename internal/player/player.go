@@ -1,6 +1,7 @@
 package player
 
 import (
+	"context"
 	"errors"
 	"math"
 	"math/rand/v2"
@@ -237,6 +238,10 @@ func (p *Player) endRadio() {
 // Radio returns the name of the radio playing, or "".
 func (p *Player) Radio() string { return p.radio }
 
+// RadioGeneration changes when a queue or a radio replaces the current one.
+// A pending first radio response must not replace that newer selection.
+func (p *Player) RadioGeneration() int { return p.radioGen }
+
 // refill asks the radio for more once the queue is near its end.
 func (p *Player) refill() {
 	if p.feed == nil || p.feeding || p.at < len(p.order)-2 {
@@ -368,11 +373,23 @@ type Audio interface {
 // download, waiting for what has not come in, and fails once the track
 // changes. It works on any goroutine once opened; close it when done.
 func (p *Player) OpenAudio() (Audio, error) {
+	return p.AudioOpener()(context.Background())
+}
+
+// AudioOpener captures the current download on the main thread. The returned
+// function opens it on a worker and can cancel waiting for downloaded bytes
+// without stopping playback. It never reads Player from that worker.
+func (p *Player) AudioOpener() func(context.Context) (Audio, error) {
 	if p.stream == nil || p.track == nil {
-		return nil, errors.New("player: nothing loaded")
+		return func(context.Context) (Audio, error) {
+			return nil, errors.New("player: nothing loaded")
+		}
 	}
 	dl, _ := p.stream.source()
-	return openShared(dl, p.track.Duration)
+	duration := p.track.Duration
+	return func(ctx context.Context) (Audio, error) {
+		return openSharedContext(ctx, dl, duration)
+	}
 }
 
 // PlayOrder returns the queue's indices in play order, and where the

@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import { tanstackStart } from '@tanstack/solid-start/plugin/vite'
 import solid from 'vite-plugin-solid'
+import { github } from './project'
 
 // The latest release, with its installers, for the download page to link
 // to. It's fetched once, as the site is built: a release that is published
@@ -8,7 +9,7 @@ import solid from 'vite-plugin-solid'
 // if set, is sent with the request, for the API's rate limit.
 async function latestRelease() {
   const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN
-  const res = await fetch('https://api.github.com/repos/egoist/mygo-cloudmusic/releases/latest', {
+  const res = await fetch(`https://api.github.com/repos/${github}/releases/latest`, {
     headers: token ? { authorization: `Bearer ${token}` } : {},
   })
   if (!res.ok) throw new Error(`fetching the latest release: GitHub answered ${res.status}`)

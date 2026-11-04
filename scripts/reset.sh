@@ -12,8 +12,6 @@
 # quit first.
 set -euo pipefail
 
-name="MyGo 云音乐"
-id="dev.egoist.cloudmusic"
 release=0 keep_login=0 songs=0
 for arg in "$@"; do
 	case "$arg" in
@@ -30,17 +28,28 @@ for arg in "$@"; do
 		;;
 	esac
 done
-if [[ $release == 0 ]]; then
-	name+=" Dev"
-	id+=".dev"
-fi
-
 if [[ $(uname) != Darwin ]]; then
 	echo "only macOS for now" >&2
 	exit 1
 fi
+# Match the app being built, not the upstream application's data or login.
+config="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)/mygo.json"
+name=$(/usr/bin/plutil -extract name raw -o - "$config")
+id=$(/usr/bin/plutil -extract identifier raw -o - "$config")
+if [[ -z $name || $name == . || $name == .. || $name == *[/\\]* || $name == *$'\n'* || $name == *$'\r'* || ! $id =~ ^[[:alnum:]][[:alnum:].-]+$ ]]; then
+	echo "invalid application identity in $config" >&2
+	exit 1
+fi
+if [[ $release == 0 ]]; then
+	name+=" Dev"
+	id+=".dev"
+fi
 data="$HOME/Library/Application Support/$name"
 cache="$HOME/Library/Caches/$name"
+if [[ -L $data || -L $cache ]]; then
+	echo "refusing to reset a symlinked application directory" >&2
+	exit 1
+fi
 
 if pgrep -f "/$name.app/Contents/MacOS/" >/dev/null; then
 	echo "quitting $name…"

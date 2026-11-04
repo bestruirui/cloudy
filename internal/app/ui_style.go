@@ -91,6 +91,13 @@ func isRoam(name string) bool { return strings.HasPrefix(name, stylePrefix) }
 
 // styleWords returns what finds the playlists of the style of a radio.
 func styleWords(label string) string {
+	if parts := strings.Split(label, "|"); len(parts) > 1 {
+		words := make([]string, len(parts))
+		for i, part := range parts {
+			words[i] = styleWords(part)
+		}
+		return strings.Join(words, " ")
+	}
 	for _, g := range roamGroups {
 		for _, s := range g.styles {
 			if s.label == label {
@@ -172,11 +179,50 @@ func (r *roamer) refill(label string) error {
 	return nil
 }
 
-// playStyle roams a style, or goes on with it.
+// roamChoice returns the selected style and language, including one loading.
+func (a *app) roamChoice() (style, language string) {
+	name := a.radioStarting
+	if name == "" {
+		name = a.pl.Radio()
+	}
+	if !isRoam(name) {
+		return
+	}
+	for _, label := range strings.Split(strings.TrimPrefix(name, stylePrefix), "|") {
+		if isRoamLanguage(label) {
+			language = label
+		} else {
+			style = label
+		}
+	}
+	return
+}
+
+func isRoamLanguage(label string) bool {
+	for _, s := range roamGroups[2].styles {
+		if s.label == label {
+			return true
+		}
+	}
+	return false
+}
+
+// playStyle toggles one style or one language; the two combine in a search.
 func (a *app) playStyle(label string) {
+	style, language := a.roamChoice()
+	chosen := &style
+	if isRoamLanguage(label) {
+		chosen = &language
+	}
+	if *chosen == label {
+		*chosen = ""
+	} else {
+		*chosen = label
+	}
+	label = strings.Trim(strings.Join([]string{style, language}, "|"), "|")
 	name := styleRadio(label)
-	if a.pl.Radio() == name {
-		a.nowPlaying = true
+	if label == "" {
+		a.exitRadio()
 		return
 	}
 	a.startRadio(name, "这个风格暂时无法播放，请稍后再试")
@@ -186,7 +232,7 @@ func (a *app) playStyle(label string) {
 func (a *app) roamSection(c *ui.Context) {
 	p := a.pal
 	a.section(c, "风格漫游")
-	ui.Text(c, "选一种风格，一直播放这一类的歌，不需要登录").FontSize(12.5).TextColor(p.muted).Margin(-8, 0, 16, 0)
+	ui.Text(c, "风格可搭配一种语种，再次点击取消选择；无需登录").FontSize(12.5).TextColor(p.muted).Margin(-8, 0, 16, 0)
 	for _, g := range roamGroups {
 		ui.Text(c, g.title).FontSize(12).FontWeight(600).TextColor(p.faint).Margin(12, 2, 8, 2)
 		ui.Grid(c.Key(g.title)).Columns(a.columns(c, 88)).GapX(10).GapY(10).Children(func() {
@@ -200,8 +246,9 @@ func (a *app) roamSection(c *ui.Context) {
 // styleTile is a style: lit while it plays.
 func (a *app) styleTile(c *ui.Context, s *roamStyle) {
 	p := a.pal
-	name := styleRadio(s.label)
-	on, starting := a.pl.Radio() == name, a.radioStarting == name
+	style, language := a.roamChoice()
+	on := style == s.label || language == s.label
+	starting := on && isRoam(a.radioStarting)
 	tile := ui.ButtonBase(c).Column().Height(82).Gap(7).Radius(14).AlignItems(ui.Center).Justify(ui.Center).FocusRing(false).Label(s.label)
 	bg, ink := p.hover, p.text
 	switch {

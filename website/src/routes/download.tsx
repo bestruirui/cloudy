@@ -57,6 +57,7 @@ const installPs = `irm ${repo}/releases/latest/download/install.ps1 | iex`
 
 // A build's asset; a build the release has none of links to the release.
 const asset = (b: Build) => release.assets.find((a) => b.match(a.name))
+const hasInstaller = (name: string) => release.assets.some((a) => a.name === name)
 
 function detectOS(): OS | undefined {
   const ua = navigator.userAgent
@@ -96,7 +97,7 @@ function Download() {
         </div>
 
         <div class="platforms">
-          <For each={platforms}>
+          <For each={platforms.filter((p) => p.builds.some((b) => asset(b)))}>
             {(p) => (
               <article class="platform">
                 <div class="platform-head">
@@ -107,7 +108,7 @@ function Download() {
                 </div>
                 <p class="platform-note">{p.note}</p>
                 <div class="platform-builds">
-                  <For each={p.builds}>
+                  <For each={p.builds.filter((b) => asset(b))}>
                     {(b) => (
                       <a
                         class="build"
@@ -127,12 +128,14 @@ function Download() {
           </For>
         </div>
 
-        <div class="install">
-          <h2>用一行命令安装</h2>
-          <p>下载最新版本，装到你的用户目录，以后同样自动更新。</p>
-          <Command label="macOS 与 Linux" text={installSh} />
-          <Command label="Windows PowerShell" text={installPs} />
-        </div>
+        <Show when={hasInstaller('install.sh') || hasInstaller('install.ps1')}>
+          <div class="install">
+            <h2>用一行命令安装</h2>
+            <p>下载最新版本，装到你的用户目录，以后同样自动更新。</p>
+            <Show when={hasInstaller('install.sh')}><Command label="macOS 与 Linux" text={installSh} /></Show>
+            <Show when={hasInstaller('install.ps1')}><Command label="Windows PowerShell" text={installPs} /></Show>
+          </div>
+        </Show>
 
         <p class="fine download-more">
           <GitHubMark size={14} />

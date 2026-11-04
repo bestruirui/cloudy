@@ -25,6 +25,10 @@ import (
 // app's memory, as much again as the song. Songs the cache would not keep
 // come into memory.
 type download struct {
+	// A shared decoder has its own cancellable view of the same bytes.
+	// Cancelling it wakes only that reader, leaving playback's download alive.
+	parent *download
+	ctx    context.Context
 	mu     sync.Mutex
 	cond   sync.Cond
 	file   *os.File // where the song is, or nil: then data
@@ -240,12 +244,31 @@ func (d *download) Progress() float64 {
 // waitFor waits until n bytes are in, or the download ended, and returns
 // how many there are.
 func (d *download) waitFor(n int64) int64 {
+	view := d
+	d = d.root()
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	for d.n < n && !d.done {
+	for d.n < n && !d.done && view.errContext() == nil {
 		d.cond.Wait()
 	}
+	if view.errContext() != nil {
+		return 0
+	}
 	return d.n
+}
+
+func (d *download) root() *download {
+	if d.parent != nil {
+		return d.parent
+	}
+	return d
+}
+
+func (d *download) errContext() error {
+	if d.ctx != nil {
+		return d.ctx.Err()
+	}
+	return nil
 }
 
 // readAt reads into b what is in from off, as much as fits. Its caller
@@ -263,6 +286,7 @@ func (d *download) readAt(b []byte, off int64) (int, error) {
 
 // peek returns up to n bytes from off, as far as they are in.
 func (d *download) peek(off int64, n int) []byte {
+	d = d.root()
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	b := make([]byte, n)
@@ -295,11 +319,14 @@ type downloadReader struct {
 }
 
 func (r *downloadReader) Read(p []byte) (int, error) {
-	d := r.d
+	d := r.d.root()
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	for d.n <= r.pos && !d.done {
+	for d.n <= r.pos && !d.done && r.d.errContext() == nil {
 		d.cond.Wait()
+	}
+	if err := r.d.errContext(); err != nil {
+		return 0, err
 	}
 	if d.n <= r.pos {
 		if d.err != nil {
@@ -338,19 +365,33 @@ func openStream(dl *download, durationMs int64) (stream, error) {
 // from what plays: it measures no spectrum, and closing it lets the song
 // go for it alone, leaving the download to the stream that plays.
 func openShared(dl *download, durationMs int64) (stream, error) {
+	return openSharedContext(context.Background(), dl, durationMs)
+}
+
+func openSharedContext(ctx context.Context, dl *download, durationMs int64) (stream, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if !dl.share() {
 		return nil, errors.New("player: the song is gone")
 	}
-	s, err := openStream(dl, durationMs)
+	view := &download{parent: dl, ctx: ctx, size: dl.size}
+	stop := context.AfterFunc(ctx, func() {
+		dl.mu.Lock()
+		dl.cond.Broadcast()
+		dl.mu.Unlock()
+	})
+	drop := func() { stop(); dl.release() }
+	s, err := openStream(view, durationMs)
 	if err != nil {
-		dl.release()
+		drop()
 		return nil, err
 	}
 	switch s := s.(type) {
 	case *mp3Stream:
-		s.spec, s.drop = nil, dl.release
+		s.spec, s.drop = nil, drop
 	case *flacStream:
-		s.spec, s.drop = nil, dl.release
+		s.spec, s.drop = nil, drop
 	}
 	return s, nil
 }

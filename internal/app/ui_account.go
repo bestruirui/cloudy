@@ -46,6 +46,8 @@ func (a *app) boot() {
 
 // signedIn shows what is personal to prof, or to nobody.
 func (a *app) signedIn(prof *netease.Profile) {
+	a.accountGen++
+	a.cancelRadioStart()
 	a.profile = prof
 	// Playback picks up where it was left, once the session that lets
 	// the listener play their songs is back.
@@ -55,6 +57,7 @@ func (a *app) signedIn(prof *netease.Profile) {
 	// What the listener may play, and follows, changed: load the pages
 	// again.
 	a.playlists = map[int64]*netease.Playlist{}
+	a.loadingPl = map[int64]bool{}
 	a.plErr = map[int64]string{}
 	a.artists, a.albums, a.users, a.podcasts = map[int64]*artistData{}, map[int64]*albumData{}, map[int64]*userData{}, map[int64]*podcastData{}
 	a.podcastTab = &podcastTab{}

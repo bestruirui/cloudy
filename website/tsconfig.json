@@ -1,13 +1,14 @@
 {
-  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts", "project.ts"],
   "compilerOptions": {
     "jsx": "preserve",
     "jsxImportSource": "solid-js",
     "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
     "module": "ESNext",
     "target": "ES2022",
     "lib": ["DOM", "DOM.Iterable", "ES2022"],
-    "types": ["vite/client"],
+    "types": ["vite/client", "node"],
     "strict": true,
     "skipLibCheck": true,
     "noEmit": true

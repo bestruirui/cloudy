@@ -13,6 +13,7 @@ import (
 	"github.com/egoist/mygo"
 
 	"netease-music-mygo/internal/lyrics"
+	"netease-music-mygo/internal/player"
 	"netease-music-mygo/internal/speech"
 )
 
@@ -280,30 +281,41 @@ func releaseRecognizer() {
 // transcribe writes down the episode playing from from up to until, on a
 // goroutine.
 func (a *app) transcribe(program int64, from, until time.Duration) {
-	src, err := a.pl.OpenAudio()
-	if err != nil {
-		return
-	}
-	if err := src.SetPosition(int64(from.Seconds() * float64(src.SampleRate()))); err != nil {
-		src.Close()
-		return
-	}
 	dir, err := modelDir()
 	if err != nil {
-		src.Close()
 		return
 	}
+	open := a.pl.AudioOpener()
+	a.transcribeAudio(program, from, until, dir, open)
+}
+
+// transcribeAudio opens and positions only on its worker, before acquiring
+// the recognizer. Cancelling a stalled seek must not hold up the next job.
+func (a *app) transcribeAudio(program int64, from, until time.Duration, dir string, open func(context.Context) (player.Audio, error)) {
 	ctx, cancel := context.WithCancel(context.Background())
 	w := &captionWork{program: program, from: from, until: until, at: from, cancel: cancel}
 	a.captions.work = w
 	go func() {
+		defer cancel()
+		finish := func(err error) {
+			stopped := ctx.Err() != nil
+			a.post(func() { a.captionDone(w, err, stopped) })
+		}
+		src, err := open(ctx)
+		if err != nil {
+			finish(err)
+			return
+		}
 		defer src.Close()
+		if err := src.SetPosition(int64(from.Seconds() * float64(src.SampleRate()))); err != nil {
+			finish(err)
+			return
+		}
 		recognizer.Lock()
 		defer recognizer.Unlock()
 		if ctx.Err() != nil {
 			return
 		}
-		var err error
 		if recognizer.t == nil {
 			recognizer.t, err = newTranscriber(dir)
 		}
@@ -312,7 +324,7 @@ func (a *app) transcribe(program int64, from, until time.Duration) {
 				func(s speech.Segment) { a.post(func() { a.captionSaid(w, s) }) },
 				func(at time.Duration) { a.post(func() { a.captionHeard(w, at) }) })
 		}
-		a.post(func() { a.captionDone(w, err, ctx.Err() != nil) })
+		finish(err)
 	}()
 }
 
