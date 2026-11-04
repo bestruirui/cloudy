@@ -51,6 +51,16 @@ go tool mygo build   # 打包到 build/
 go test ./...        # 运行测试
 ```
 
+## AI 贡献者
+
+Cloudy 由 **nya-owo** 开发并维护，同时借助 AI 工具协助完成开发工作。
+
+| 贡献者 | 所属组织 | 角色 |
+|---|---|---|
+| **nya-owo** | 独立开发者 | 项目所有者与维护者 |
+| **Claude** | Anthropic | AI 编程助手 |
+| **OpenAI Codex** | OpenAI | AI 编程助手 |
+
 ## 致谢
 
 - [egoist/mygo-cloudmusic](https://github.com/egoist/mygo-cloudmusic)：本项目修改自它，原作者 egoist
