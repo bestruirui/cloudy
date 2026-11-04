@@ -394,11 +394,30 @@ type fmCoverKey struct {
 	index int
 }
 
+type fmCoverItem struct {
+	key   fmCoverKey
+	track netease.Track
+	until time.Time
+}
+
+// Keep the departing cover above its successor until it has faded away.
+type fmCoverStack struct {
+	current fmCoverItem
+	leaving []fmCoverItem
+}
+
+const fmCoverExit = 340 * time.Millisecond
+
+var fmCoverMove = ui.Animation{Spring: ui.SpringOptions{Duration: 600 * time.Millisecond}}
+var fmCoverLeave = ui.Animation{Duration: fmCoverExit, Ease: ui.CubicBezier(0.3, 0, 0.7, 1)}
+var fmCoverEnter = ui.Animation{Duration: 420 * time.Millisecond, Delay: 80 * time.Millisecond, Ease: ui.CubicBezier(0.22, 1, 0.36, 1)}
+
 // fmCovers lets the next queued cover come forward as the current one leaves.
 func (a *app) fmCovers(c *ui.Context, tr *netease.Track) {
 	const size = 232
 	ui.Box(c).Size(size+36, size).Shrink(0).Children(func() {
 		if tr == nil {
+			a.fmCoversState = fmCoverStack{}
 			ui.Box(c.Key("empty")).Absolute().Top(0).Left(0).Size(size, size).Radius(14).
 				Background(white.Alpha(0.12)).Center().Children(func() {
 				ui.Icon(c, iconRadio).Size(64, 64).TextColor(white.Alpha(0.85))
@@ -411,33 +430,48 @@ func (a *app) fmCovers(c *ui.Context, tr *netease.Track) {
 			return
 		}
 		current, next := order[at], a.pl.NextIndex()
-		animation := ui.Animation{Spring: ui.SpringOptions{Duration: 500 * time.Millisecond, Bounce: 0.12}}
-		draw := func(index int, front bool) {
-			t := &queue[index]
-			top, left, side := float32(16), float32(36), float32(size-32)
-			pose := ui.Pose{X: 14, Rotate: 6, Fade: 0.45}
-			label := "下一首封面：" + t.Name
-			if front {
-				top, left, side = 0, 0, size
-				pose = ui.Pose{}
-				if !a.pl.Playing() {
-					pose.Scale = 0.94
-				}
-				label = "当前封面：" + t.Name
+		key := fmCoverKey{tr.ID, current}
+		state, now := &a.fmCoversState, c.Now()
+		if state.current.key != key {
+			if state.current.track.ID != 0 {
+				old := state.current
+				old.until = now.Add(fmCoverExit)
+				state.leaving = append(state.leaving, old)
 			}
-			cover := ui.Box(c.Key(fmCoverKey{t.ID, index})).Absolute().Top(top).Left(left).Size(side, side).
+			state.current = fmCoverItem{key: key, track: *tr}
+		}
+		// A quick reversal can put a departing cover back into the queue.
+		kept := state.leaving[:0]
+		for _, item := range state.leaving {
+			if !now.Before(item.until) || item.key == key || next >= 0 && item.key == (fmCoverKey{queue[next].ID, next}) {
+				continue
+			}
+			kept = append(kept, item)
+			c.After(item.until.Sub(now))
+		}
+		clear(state.leaving[len(kept):])
+		state.leaving = kept
+		draw := func(item fmCoverItem, pose ui.Pose, animation ui.Animation, label string) {
+			// Fixed geometry keeps the cover on the compositor throughout the move.
+			cover := ui.Box(c.Key(item.key)).Absolute().Top(0).Left(0).Size(size, size).
 				Radius(14).Label(label).Background(white.Alpha(0.12)).
 				Shadow(0, 20, 44, -10, ui.RGBA(0, 0, 0, 0.55)).
-				Transition(ui.ElementTransition{Animation: &animation,
-					Enter: &ui.Motion{X: 18, Scale: 0.94},
-					Exit:  &ui.Motion{X: -80, Scale: 0.94}})
+				Transition(ui.ElementTransition{Colors: true, Animation: &fmCoverEnter, Enter: &ui.Motion{}})
 			cover.AnimatePose(pose, animation)
-			cover.Children(func() { a.coverFill(c, t.Album.PicURL, 600, 14) })
+			cover.Children(func() { a.coverFill(c, item.track.Album.PicURL, 600, 14) })
 		}
 		if next >= 0 && next != current {
-			draw(next, false)
+			draw(fmCoverItem{key: fmCoverKey{queue[next].ID, next}, track: queue[next]},
+				ui.Pose{X: 34, Scale: float32(size-32) / size, Rotate: 4}, fmCoverMove, "下一首封面："+queue[next].Name)
 		}
-		draw(current, true)
+		pose := ui.Pose{}
+		if !a.pl.Playing() {
+			pose.Scale = 0.94
+		}
+		draw(state.current, pose, fmCoverMove, "当前封面："+tr.Name)
+		for i := len(state.leaving) - 1; i >= 0; i-- {
+			draw(state.leaving[i], ui.Pose{X: -42, Y: 3, Scale: 0.96, Rotate: -2, Fade: 1}, fmCoverLeave, "")
+		}
 	})
 }
 

@@ -3,6 +3,9 @@ package app
 import (
 	"image"
 	"image/color"
+	stdpalette "image/color/palette"
+	"image/draw"
+	"image/gif"
 	"image/png"
 	"os"
 	"path/filepath"
@@ -100,6 +103,35 @@ func TestFMNextCoverFollowsPlayback(t *testing.T) {
 	}
 }
 
+// Rapid skips and reversals keep one copy of each cover, then release the old ones.
+func TestFMCoversKeepDepartingUntilFaded(t *testing.T) {
+	a := newTestApp()
+	a.pl.Cue([]netease.Track{{ID: 1, Name: "一"}, {ID: 2, Name: "二"}, {ID: 3, Name: "三"}, {ID: 4, Name: "四"}})
+	a.pl.AttachRadio(fmRadio(netease.FMDefault), func(func([]netease.Track)) {})
+	tt := ui.NewTester(func(c *ui.Context) { a.fmCovers(c, a.pl.Current()) }, 360, 300)
+	tt.Frame()
+	a.pl.Next()
+	tt.Frame()
+	tt.Advance(60 * time.Millisecond)
+	a.pl.Next()
+	tt.Frame()
+	if len(a.fmCoversState.leaving) != 2 {
+		t.Fatal("a quick skip dropped a cover before it faded")
+	}
+	a.pl.Prev()
+	tt.Frame()
+	for _, item := range a.fmCoversState.leaving {
+		if item.track.ID == 2 || item.track.ID == 3 {
+			t.Fatal("a queued cover was also drawn as departing")
+		}
+	}
+	tt.Advance(time.Second)
+	tt.Frame()
+	if len(a.fmCoversState.leaving) != 0 {
+		t.Fatal("the stack kept faded covers")
+	}
+}
+
 // With NM_FRAMES set, saves the FM stack before and during a change of song.
 func TestFMCoverFrames(t *testing.T) {
 	dir := os.Getenv("NM_FRAMES")
@@ -121,6 +153,7 @@ func TestFMCoverFrames(t *testing.T) {
 		a.art.add(netease.Sized(tracks[i].Album.PicURL, 600), &artwork{bmp: ui.NewBitmap(img), used: time.Now(), size: 1})
 	}
 	a.pl.Cue(tracks)
+	a.pl.Hold(0)
 	a.pl.AttachRadio(fmRadio(netease.FMDefault), func(func([]netease.Track)) {})
 	tt := ui.NewTester(a.fmCard, 1000, 400)
 	tt.Frame()
@@ -140,5 +173,34 @@ func TestFMCoverFrames(t *testing.T) {
 			t.Fatal(err)
 		}
 		f.Close()
+	}
+	// A separate, evenly sampled run shows the cadence between the stills.
+	a.pl.Cue(tracks)
+	a.pl.Hold(0)
+	a.fmCoversState = fmCoverStack{}
+	tt = ui.NewTester(a.fmCard, 1000, 400)
+	tt.Frame()
+	tt.Advance(time.Second)
+	animation := &gif.GIF{LoopCount: 0}
+	for frame := range 40 {
+		if frame == 6 {
+			a.pl.Next()
+			tt.Frame()
+		}
+		tt.Advance(40 * time.Millisecond)
+		tt.Frame()
+		img := tt.Image().SubImage(image.Rect(0, 15, 325, 305))
+		paletted := image.NewPaletted(image.Rect(0, 0, 325, 290), stdpalette.Plan9)
+		draw.FloydSteinberg.Draw(paletted, paletted.Bounds(), img, img.Bounds().Min)
+		animation.Image = append(animation.Image, paletted)
+		animation.Delay = append(animation.Delay, 4)
+	}
+	f, err := os.Create(filepath.Join(dir, "fm-smooth.gif"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if err := gif.EncodeAll(f, animation); err != nil {
+		t.Fatal(err)
 	}
 }

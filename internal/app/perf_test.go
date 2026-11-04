@@ -124,3 +124,22 @@ func TestBackdropFadeEnds(t *testing.T) {
 		t.Error("the last song's backdrop still fades after the fade")
 	}
 }
+
+// The FM stack stops requesting frames after its covers have changed places.
+func TestFMCoverRestFrames(t *testing.T) {
+	a := newTestApp()
+	a.pl.Cue([]netease.Track{{ID: 1}, {ID: 2}, {ID: 3}})
+	a.pl.AttachRadio(fmRadio(netease.FMDefault), func(func([]netease.Track)) {})
+	tt := ui.NewTester(func(c *ui.Context) { a.fmCovers(c, a.pl.Current()) }, 360, 300)
+	tt.Frame()
+	a.pl.Next()
+	tt.Frame()
+	tt.Advance(3 * time.Second)
+	tt.Frame()
+	for range 10 {
+		tt.Advance(100 * time.Millisecond)
+		if tt.FramePending() {
+			t.Fatal("the resting FM stack still asks for frames")
+		}
+	}
+}

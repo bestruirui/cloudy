@@ -115,7 +115,8 @@ type app struct {
 	comments    commentState
 	tabCount    rollState // the count on the comments' tab, as it rolls
 
-	fmMode        int    // the FM mode chosen, in fmModes
+	fmMode        int // the FM mode chosen, in fmModes
+	fmCoversState fmCoverStack
 	radioStarting string // the radio asked for its first songs, or ""
 	radioGen      int    // distinguishes requests for the same radio
 
