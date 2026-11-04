@@ -7,6 +7,7 @@ import (
 	"image/draw"
 	"image/gif"
 	"image/png"
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -129,6 +130,59 @@ func TestFMCoversKeepDepartingUntilFaded(t *testing.T) {
 	tt.Frame()
 	if len(a.fmCoversState.leaving) != 0 {
 		t.Fatal("the stack kept faded covers")
+	}
+}
+
+// A backdrop arriving mid-handoff must not recreate the moving cover's parents.
+func TestFMCoverKeepsMovingWhenBackdropLoads(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		oldReady bool
+		arrives  time.Duration
+	}{
+		{"warm-40ms", true, 40 * time.Millisecond},
+		{"warm-80ms", true, 80 * time.Millisecond},
+		{"warm-160ms", true, 160 * time.Millisecond},
+		{"cold-40ms", false, 40 * time.Millisecond},
+		{"cold-80ms", false, 80 * time.Millisecond},
+		{"cold-160ms", false, 160 * time.Millisecond},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := newTestApp()
+			a.settings = defaultSettings()
+			tracks := []netease.Track{{ID: 1, Name: "一"}, {ID: 2, Name: "二"}, {ID: 3, Name: "三"}}
+			for i := range tracks {
+				tracks[i].Album.PicURL = "https://example.com/fm" + tracks[i].Name
+				markArt(a, tracks[i].Album.PicURL, 600)
+				a.art.busy[netease.Sized(tracks[i].Album.PicURL, 600)+"#backdrop"] = true
+			}
+			if tc.oldReady {
+				first := a.art.peek(netease.Sized(tracks[0].Album.PicURL, 600))
+				a.art.add(netease.Sized(tracks[0].Album.PicURL, 600)+"#backdrop", &artwork{backdrop: first.bmp})
+			}
+			a.pl.Cue(tracks)
+			a.pl.Hold(0)
+			a.pl.AttachRadio(fmRadio(netease.FMDefault), func(func([]netease.Track)) {})
+			tt := ui.NewTester(a.fmCard, 1000, 400)
+			tt.Frame()
+			a.pl.Next()
+			tt.Frame()
+			tt.Advance(tc.arrives)
+			tt.Frame()
+			before, ok := tt.Find("当前封面：二")
+			if !ok || before.X <= 45 {
+				t.Fatalf("the next cover did not start moving forward: %+v", before)
+			}
+			second := a.art.peek(netease.Sized(tracks[1].Album.PicURL, 600))
+			a.art.add(netease.Sized(tracks[1].Album.PicURL, 600)+"#backdrop", &artwork{backdrop: second.bmp})
+			tt.Frame()
+			tt.Advance(time.Millisecond)
+			tt.Frame()
+			after, ok := tt.Find("当前封面：二")
+			if !ok || math.Abs(float64(after.X-before.X)) > 1 || math.Abs(float64(after.W-before.W)) > 1 {
+				t.Fatalf("the backdrop made the cover jump in 1 ms: before %+v, after %+v", before, after)
+			}
+		})
 	}
 }
 

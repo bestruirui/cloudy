@@ -326,7 +326,8 @@ func (a *app) fmCard(c *ui.Context) {
 				{Color: ui.RGBA(0, 0, 0, 0.35), At: 0},
 				{Color: ui.RGBA(0, 0, 0, 0.1), At: 1},
 			}})
-		ui.Row(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Padding(36, 40).Gap(40).AlignItems(ui.Center).Children(func() {
+		// Artwork layers appear and disappear as they load; the player must keep its identity.
+		ui.Row(c.Key("fm-content")).Absolute().Top(0).Left(0).Right(0).Bottom(0).Padding(36, 40).Gap(40).AlignItems(ui.Center).Children(func() {
 			a.fmCovers(c, tr)
 			ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(8).Children(func() {
 				label := "私人 FM · " + fmModes[a.fmMode].label
@@ -415,7 +416,7 @@ var fmCoverEnter = ui.Animation{Duration: 420 * time.Millisecond, Delay: 80 * ti
 // fmCovers lets the next queued cover come forward as the current one leaves.
 func (a *app) fmCovers(c *ui.Context, tr *netease.Track) {
 	const size = 232
-	ui.Box(c).Size(size+36, size).Shrink(0).Children(func() {
+	ui.Box(c.Key("fm-cover-stack")).Size(size+36, size).Shrink(0).Children(func() {
 		if tr == nil {
 			a.fmCoversState = fmCoverStack{}
 			ui.Box(c.Key("empty")).Absolute().Top(0).Left(0).Size(size, size).Radius(14).
