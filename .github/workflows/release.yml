@@ -62,3 +62,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
         run: go tool mygo build -platform "${{ matrix.platform }}" -upload
+      # The release holds the two installers and what installed apps update
+      # from (the manifests and archives): the install script and its
+      # checksums aren't offered, and mygo.json asks for no deltas.
+      - name: Leave out the install script
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for name in install.ps1 SHA256SUMS; do
+            gh release delete-asset "$GITHUB_REF_NAME" "$name" --repo "$GITHUB_REPOSITORY" --yes || true
+          done
