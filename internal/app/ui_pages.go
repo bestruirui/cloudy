@@ -34,6 +34,13 @@ func (a *app) section(c *ui.Context, title string) ui.Element {
 	return ui.Text(c, title).FontSize(19).FontWeight(700).LetterSpacing(-0.3).Margin(34, 0, 14, 0)
 }
 
+// sectionLarge is a section's title where the page turns on it, as the FM
+// page does on heart mode and on roaming a style: set larger than the
+// sections that only list things.
+func (a *app) sectionLarge(c *ui.Context, title string) ui.Element {
+	return ui.Text(c, title).FontSize(24).FontWeight(700).LetterSpacing(-0.4).Margin(38, 0, 16, 0)
+}
+
 func (a *app) homePage(c *ui.Context) {
 	loading := len(a.featured) == 0 && len(a.charts) == 0
 	if loading && !a.homeLoading {

@@ -146,7 +146,8 @@ func TestPlaylistSearchAndSort(t *testing.T) {
 	}
 }
 
-// Every style can be told from the others, and has something to show.
+// Every style can be told from the others, and has something to show. A
+// language counts as one wherever its group sits, even when it shows a glyph.
 func TestRoamStyles(t *testing.T) {
 	seen := map[string]bool{}
 	for _, g := range roamGroups {
@@ -157,6 +158,9 @@ func TestRoamStyles(t *testing.T) {
 			seen[s.label] = true
 			if s.words == "" || s.icon == nil && s.glyph == "" {
 				t.Errorf("%s finds or shows nothing", s.label)
+			}
+			if isRoamLanguage(s.label) != (g.title == "语种") {
+				t.Errorf("%s: language %v in %s", s.label, isRoamLanguage(s.label), g.title)
 			}
 		}
 	}

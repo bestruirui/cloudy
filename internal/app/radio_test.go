@@ -186,6 +186,64 @@ func TestFMCoverKeepsMovingWhenBackdropLoads(t *testing.T) {
 	}
 }
 
+// With NM_FRAMES set, saves the FM page's heart card and style tiles in
+// both appearances, one style chosen and another under the pointer, and
+// once with the accent following a green cover.
+func TestFMPageFrames(t *testing.T) {
+	dir := os.Getenv("NM_FRAMES")
+	if dir == "" {
+		t.Skip()
+	}
+	for _, tc := range []struct {
+		name  string
+		dark  bool
+		cover bool
+		w     int
+	}{
+		{"fm-page-dark.png", true, false, 1440},
+		{"fm-page-light.png", false, false, 1440},
+		{"fm-page-cover-dark.png", true, true, 1440},
+		{"fm-page-narrow-dark.png", true, false, 960},
+	} {
+		a := newTestApp()
+		a.settings = defaultSettings()
+		a.route = route{page: pageFM}
+		if tc.cover {
+			// The accent of the style tiles comes from this cover.
+			a.settings.AccentCover = true
+			url := "https://example.com/green.jpg"
+			img := image.NewRGBA(image.Rect(0, 0, 64, 64))
+			for i := 0; i < len(img.Pix); i += 4 {
+				img.Pix[i], img.Pix[i+1], img.Pix[i+2], img.Pix[i+3] = 60, 180, 110, 255
+			}
+			a.art.add(netease.Sized(url, 600), &artwork{bmp: ui.NewBitmap(img), backdrop: ui.NewBitmap(img), tint: ui.RGB(60, 180, 110), used: time.Now(), size: 1})
+			a.art.add(netease.Sized(url, 600)+"#backdrop", a.art.peek(netease.Sized(url, 600)))
+			a.pl.Cue([]netease.Track{{ID: 1, Name: "一", Album: netease.Album{PicURL: url}}})
+		}
+		a.pl.AttachRadio(styleRadio("欢快"), func(func([]netease.Track)) {})
+		tt := ui.NewTester(a.view, tc.w, 1120)
+		tt.SetDark(tc.dark)
+		tt.Frame()
+		tt.Advance(time.Second)
+		tt.Frame()
+		if r, ok := tt.Find("放松"); ok {
+			tt.Move(r.X+r.W/2, r.Y+r.H/2)
+		}
+		tt.Frame()
+		tt.Advance(500 * time.Millisecond)
+		tt.Frame()
+		f, err := os.Create(filepath.Join(dir, tc.name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := png.Encode(f, tt.Image()); err != nil {
+			f.Close()
+			t.Fatal(err)
+		}
+		f.Close()
+	}
+}
+
 // With NM_FRAMES set, saves the FM stack before and during a change of song.
 func TestFMCoverFrames(t *testing.T) {
 	dir := os.Getenv("NM_FRAMES")

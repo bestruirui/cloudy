@@ -30,6 +30,17 @@ var roamGroups = []struct {
 	title  string
 	styles []roamStyle
 }{
+	// Languages lead: they are the one group that pairs with every other,
+	// so the style chosen below can be read against them at once.
+	{"语种", []roamStyle{
+		{label: "华语", glyph: "中", words: "华语"},
+		{label: "欧美", glyph: "En", words: "欧美"},
+		{label: "粤语", glyph: "粤", words: "粤语"},
+		{label: "日语", glyph: "あ", words: "日语"},
+		{label: "K-Pop", glyph: "한", words: "K-Pop"},
+		{label: "法语", glyph: "Fr", words: "法语"},
+		{label: "全球", icon: iconGlobe, words: "世界音乐"},
+	}},
 	{"心情", []roamStyle{
 		{label: "伤感", icon: iconHeartCrack, words: "伤感"},
 		{label: "放松", icon: iconFlower, words: "放松"},
@@ -51,15 +62,6 @@ var roamGroups = []struct {
 		{label: "咖啡馆", icon: iconCoffee, words: "咖啡馆"},
 		{label: "舞蹈", icon: iconSteps, words: "舞蹈"},
 		{label: "影视", icon: iconClapper, words: "影视金曲"},
-	}},
-	{"语种", []roamStyle{
-		{label: "华语", glyph: "中", words: "华语"},
-		{label: "欧美", glyph: "En", words: "欧美"},
-		{label: "粤语", glyph: "粤", words: "粤语"},
-		{label: "日语", glyph: "あ", words: "日语"},
-		{label: "K-Pop", glyph: "한", words: "K-Pop"},
-		{label: "法语", glyph: "Fr", words: "法语"},
-		{label: "全球", icon: iconGlobe, words: "世界音乐"},
 	}},
 	{"曲风", []roamStyle{
 		{label: "R&B", icon: iconMicVocal, words: "R&B"},
@@ -199,9 +201,14 @@ func (a *app) roamChoice() (style, language string) {
 }
 
 func isRoamLanguage(label string) bool {
-	for _, s := range roamGroups[2].styles {
-		if s.label == label {
-			return true
+	for _, g := range roamGroups {
+		if g.title != "语种" {
+			continue
+		}
+		for _, s := range g.styles {
+			if s.label == label {
+				return true
+			}
 		}
 	}
 	return false
@@ -231,10 +238,13 @@ func (a *app) playStyle(label string) {
 // roamSection lists the styles, each a tile that starts it, in groups.
 func (a *app) roamSection(c *ui.Context) {
 	p := a.pal
-	a.section(c, "风格漫游")
-	ui.Text(c, "风格可搭配一种语种，再次点击取消选择；无需登录").FontSize(12.5).TextColor(p.muted).Margin(-8, 0, 16, 0)
+	a.sectionLarge(c, "风格漫游")
+	ui.Text(c, "风格可搭配一种语种，再次点击取消选择；无需登录").FontSize(14.5).TextColor(p.muted).Margin(-10, 0, 18, 0)
 	for _, g := range roamGroups {
-		ui.Text(c, g.title).FontSize(12).FontWeight(600).TextColor(p.faint).Margin(12, 2, 8, 2)
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Margin(14, 2, 10, 2).Children(func() {
+			ui.Box(c).Size(3, 16).Radius(8).Background(p.accent)
+			ui.Text(c, g.title).FontSize(15).FontWeight(700).TextColor(p.text)
+		})
 		ui.Grid(c.Key(g.title)).Columns(a.columns(c, 88)).GapX(10).GapY(10).Children(func() {
 			for i := range g.styles {
 				a.styleTile(c.Key(g.styles[i].label), &g.styles[i])
@@ -243,21 +253,25 @@ func (a *app) roamSection(c *ui.Context) {
 	}
 }
 
-// styleTile is a style: lit while it plays.
+// styleTile is a style: lit while it plays, and framed in the accent under
+// the pointer. The colors follow the cover playing when the settings say so,
+// through the palette's accent.
 func (a *app) styleTile(c *ui.Context, s *roamStyle) {
 	p := a.pal
 	style, language := a.roamChoice()
 	on := style == s.label || language == s.label
 	starting := on && isRoam(a.radioStarting)
-	tile := ui.ButtonBase(c).Column().Height(82).Gap(7).Radius(14).AlignItems(ui.Center).Justify(ui.Center).FocusRing(false).Label(s.label)
-	bg, ink := p.hover, p.text
+	tile := ui.ButtonBase(c).Column().Height(82).Gap(7).Radius(14).AlignItems(ui.Center).Justify(ui.Center).FocusRing(false).Label(s.label).
+		Border(1.5, ui.Transparent)
+	bg, edge, ink := p.hover, ui.Transparent, p.text
 	switch {
 	case on:
-		bg, ink = p.accent.Alpha(0.16), p.accent
+		bg, edge, ink = p.accent.Alpha(0.16), p.accent, p.accent
 	case tile.Hovered():
-		bg = p.press
+		bg, edge = p.press, p.faint
 	}
 	tile.Background(tile.AnimateColor("bg", bg, ui.Animation{Duration: 140 * time.Millisecond}))
+	tile.BorderColor(tile.AnimateColor("edge", edge, ui.Animation{Duration: 140 * time.Millisecond}))
 	lift := ui.Pose{}
 	if tile.Hovered() {
 		lift.Y = -2
@@ -267,19 +281,38 @@ func (a *app) styleTile(c *ui.Context, s *roamStyle) {
 	}
 	tile.AnimatePose(lift, ui.Snappy)
 	tile.Children(func() {
-		switch {
-		case on:
-			a.nowPlayingBars(c)
-		case s.icon != nil:
-			ui.Icon(c, s.icon).Size(22, 22).TextColor(ink)
-		default:
-			ui.Text(c, s.glyph).FontSize(19).FontWeight(800).TextColor(ink).LineHeight(1.15)
-		}
+		// Under the pointer the icon lights up: a blurred copy of it in the
+		// accent shows through behind the sharp one. The copy is a normal
+		// child and the sharp one absolute, as absolute children paint last.
+		glow := tile.Hovered()
+		ui.Box(c).Size(24, 24).Children(func() {
+			if glow {
+				ui.Box(c).Size(24, 24).Blur(6).Opacity(0.8).Center().Children(func() {
+					if s.icon != nil {
+						ui.Icon(c, s.icon).Size(24, 24).TextColor(p.accent)
+					} else {
+						ui.Text(c, s.glyph).FontSize(21).FontWeight(800).TextColor(p.accent).LineHeight(1.15)
+					}
+				})
+			}
+			ui.Box(c).Absolute().Top(0).Left(0).Size(24, 24).Center().Children(func() {
+				if s.icon != nil {
+					ui.Icon(c, s.icon).Size(24, 24).TextColor(ink)
+				} else {
+					ui.Text(c, s.glyph).FontSize(21).FontWeight(800).TextColor(ink).LineHeight(1.15)
+				}
+			})
+		})
 		label := s.label
 		if starting {
 			label = "正在调频…"
 		}
-		ui.Text(c, label).FontSize(12.5).FontWeight(500).TextColor(ink).SingleLine()
+		// The label stays in the text color: the icon alone takes the
+		// accent, so a row of chosen tiles still reads as words.
+		ui.Text(c, label).FontSize(14).FontWeight(500).TextColor(p.text).SingleLine()
+		if on {
+			ui.Icon(c, iconCheck).Absolute().Top(9).Right(10).Size(11, 11).TextColor(p.accent)
+		}
 	})
 	if tile.Clicked() {
 		a.playStyle(s.label)

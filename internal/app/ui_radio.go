@@ -294,7 +294,7 @@ func (a *app) fmPage(c *ui.Context) {
 			})
 		})
 		a.fmCard(c)
-		a.section(c, "心动模式")
+		a.sectionLarge(c, "心动模式")
 		a.heartCard(c, p)
 		a.roamSection(c)
 	})
@@ -476,19 +476,37 @@ func (a *app) fmCovers(c *ui.Context, tr *netease.Track) {
 	})
 }
 
-// heartCard starts heart mode: songs like those the listener likes.
+// heartCard starts heart mode: songs like those the listener likes, in a
+// banner of its own in the muted red and plum the FM card falls back to,
+// deep enough for white to read over it in either appearance.
 func (a *app) heartCard(c *ui.Context, p palette) {
 	on := a.pl.Radio() == heartRadio
-	ui.Row(c).Padding(22, 26).Gap(20).Radius(20).AlignItems(ui.Center).Background(p.hover).Children(func() {
-		ui.Box(c).Size(56, 56).Radius(14).Center().Shrink(0).
+	row := ui.Row(c).Padding(22, 26).Gap(20).Radius(20).AlignItems(ui.Center).TextColor(white)
+	row.LinearGradient(ui.LinearGradient{Angle: 135, Oklab: true,
+		From: ui.Oklch(0.42, 0.14, 20), To: ui.Oklch(0.30, 0.10, 300)})
+	row.Shadow(0, 16, 36, -18, p.cardShade)
+	row.Draw(func(pt *ui.Painter, r ui.Rect) {
+		// The FM card's own shade, and light from above, as the daily card has.
+		pt.Clip(r, 20, func() {
+			pt.FillGradient(r, ui.LinearGradient{Angle: 90, Stops: []ui.GradientStop{
+				{Color: ui.RGBA(0, 0, 0, 0.35), At: 0}, {Color: ui.RGBA(0, 0, 0, 0.1), At: 1},
+			}}, 0)
+			pt.FillGradient(r, ui.LinearGradient{Angle: 110, Stops: []ui.GradientStop{
+				{Color: white.Alpha(0.06), At: 0}, {Color: white.Alpha(0), At: 0.55},
+			}}, 0)
+		})
+		pt.Stroke(r, white.Alpha(0.08), 20, 1)
+	})
+	row.Children(func() {
+		ui.Box(c).Size(56, 56).Radius(14).Center().Shrink(0).Border(1, white.Alpha(0.18)).
 			LinearGradient(ui.LinearGradient{Angle: 135, Oklab: true, From: ui.Oklch(0.72, 0.17, 10), To: ui.Oklch(0.58, 0.22, 350)}).
 			TextColor(white).Children(func() { ui.Icon(c, iconHeartFill).Size(26, 26) })
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(4).Children(func() {
-			ui.Text(c, "从你喜欢的音乐出发").FontSize(15).FontWeight(700)
-			ui.Text(c, "根据你红心过的歌曲，智能推荐风格相似的音乐，与你的喜欢穿插播放").FontSize(12.5).TextColor(p.muted)
+			ui.Text(c, "从你喜欢的音乐出发").FontSize(17).FontWeight(700)
+			ui.Text(c, "根据你红心过的歌曲，智能推荐风格相似的音乐，与你的喜欢穿插播放").FontSize(14.5).TextColor(white.Alpha(0.72))
 		})
 		if on {
-			if pillButton(c.Key("exit-heart"), iconX, "退出心动模式", p.press.Over(p.bg), p.text).Clicked() {
+			if pillButton(c.Key("exit-heart"), iconX, "退出心动模式", white.Alpha(0.16), white).Clicked() {
 				a.exitRadio()
 			}
 		}
