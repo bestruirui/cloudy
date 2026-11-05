@@ -43,8 +43,8 @@ func miniSpot(x, y int) (int, int) {
 // floatWindow opens a window of the app's that floats over the others, on
 // nothing, its corners its content's. On the tray's icon if it has one, as a
 // flyout: on Windows only those show what is behind what native UI leaves
-// clear, and they never take the keyboard from the app in use. It closes only
-// as the app quits: closed, as by a key, it goes as off says.
+// clear, and they never take the keyboard from the app in use. Closing it
+// goes as off says; destruction waits until its current frame has ended.
 func (a *app) floatWindow(title string, x, y, w, h int, view func(*ui.Context), off func()) *mygo.Window {
 	var win *mygo.Window
 	if a.tray != nil {
@@ -79,7 +79,7 @@ func (a *app) applyDeskLyrics() {
 			a.applyDeskLyrics()
 		})
 		a.deskWin.OnMove(func() {
-			if a.deskWin.IsVisible() {
+			if a.deskWin != nil && a.deskWin.IsVisible() {
 				b := a.deskWin.Bounds()
 				s.DeskX, s.DeskY = b.X, b.Y
 			}
@@ -96,8 +96,20 @@ func (a *app) applyDeskLyrics() {
 		a.deskWin.SetPosition(spot(s.DeskX, s.DeskY, deskW, deskH, 40))
 		a.deskWin.SetAlwaysOnTop(true)
 	} else {
-		a.deskWin.Hide()
+		a.dropFloat(&a.deskWin)
 	}
+}
+
+// dropFloat releases a closed player's renderer after any frame building
+// its close button. A later opening gets a fresh window at the saved spot.
+func (a *app) dropFloat(slot **mygo.Window) {
+	win := *slot
+	if win == nil {
+		return
+	}
+	*slot = nil
+	win.Hide()
+	a.post(win.Destroy)
 }
 
 // toggleDeskLyrics turns them on or off, from wherever that is offered.
@@ -475,6 +487,8 @@ func (a *app) morphView(c *ui.Context) {
 		win.Destroy()
 		if toMini {
 			a.win.Hide()
+		} else {
+			a.dropFloat(&a.miniWin)
 		}
 		a.win.SetOpacity(1)
 	})
@@ -487,7 +501,7 @@ func (a *app) placeMini() {
 		x, y := miniSpot(s.MiniX, s.MiniY)
 		a.miniWin = a.floatWindow(" 迷你窗口", x, y, miniW, miniH, a.miniView, a.closeMini)
 		a.miniWin.OnMove(func() {
-			if a.miniWin.IsVisible() {
+			if a.miniWin != nil && a.miniWin.IsVisible() {
 				b := a.miniWin.Bounds()
 				s.MiniX, s.MiniY = b.X, b.Y
 			}
@@ -530,7 +544,7 @@ func (a *app) closeMini() {
 	if a.miniWin != nil && a.startMorph(x, y, false) {
 		a.win.SetOpacity(0)
 	} else if a.miniWin != nil {
-		a.miniWin.Hide()
+		a.dropFloat(&a.miniWin)
 	}
 	a.showMain()
 }
