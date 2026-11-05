@@ -79,7 +79,10 @@ type AlbumProfile struct {
 	PublishTime int64    `json:"publishTime"` // Unix milliseconds
 	Size        int      `json:"size"`        // how many songs it has
 	Description string   `json:"description"`
-	Songs       []Track  `json:"-"`
+	// SubTime is when the listener saved the album, in Unix milliseconds:
+	// only the albums they saved have one.
+	SubTime int64   `json:"subTime"`
+	Songs   []Track `json:"-"`
 }
 
 // ArtistNames joins the album's artists' names, as its credits read.

@@ -59,6 +59,9 @@ type settings struct {
 	UpdateChecks  bool  `json:"updateChecks"`
 	UpdateInstall bool  `json:"updateInstall"`
 	UpdateChecked int64 `json:"updateChecked,omitempty"`
+	// AlbumSort is how the albums the listener saved are listed: by time,
+	// name or artist; empty for the time.
+	AlbumSort string `json:"albumSort,omitempty"`
 	// BarSpin turns the cover in the bar as a record while music plays. Off
 	// is kept too.
 	BarSpin bool `json:"barSpin"`

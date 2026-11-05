@@ -88,6 +88,44 @@ func subQuery(offset int) url.Values {
 	return url.Values{"limit": {strconv.Itoa(subPage)}, "offset": {strconv.Itoa(offset)}, "total": {"true"}}
 }
 
+// SubscribedAlbums returns the albums the listener saved, those saved last
+// first.
+func SubscribedAlbums() ([]AlbumProfile, error) {
+	var out []AlbumProfile
+	for offset := 0; ; offset += subPage {
+		var res struct {
+			Albums  []AlbumProfile `json:"data"`
+			HasMore bool           `json:"hasMore"`
+		}
+		if err := get("/api/album/sublist", subQuery(offset), &res); err != nil {
+			return nil, err
+		}
+		out = append(out, res.Albums...)
+		if !res.HasMore || len(res.Albums) == 0 {
+			return out, nil
+		}
+	}
+}
+
+// SubscribeAlbum saves an album for the listener, or unsaves it.
+func SubscribeAlbum(id int64, subscribe bool) error {
+	path := "/api/album/unsub"
+	if subscribe {
+		path = "/api/album/sub"
+	}
+	var res struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+	}
+	if err := post(path, url.Values{"id": {strconv.FormatInt(id, 10)}}, &res); err != nil {
+		return err
+	}
+	if res.Code != 200 {
+		return fmt.Errorf("netease: %s: code %d %s", path, res.Code, res.Message)
+	}
+	return nil
+}
+
 // SubscribePlaylist saves a playlist for the listener, or unsaves it.
 func SubscribePlaylist(id int64, subscribe bool) error {
 	path := "/api/playlist/unsubscribe"

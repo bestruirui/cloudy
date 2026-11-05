@@ -88,6 +88,14 @@ func (a *app) albumHeader(c *ui.Context, al *netease.AlbumProfile) {
 					}
 					a.pl.PlayQueue(al.Songs, firstPlayable(al.Songs))
 				}
+				saved := a.albumSaved(al.ID)
+				label, icon, color := "收藏", iconHeart, p.text
+				if saved {
+					label, icon, color = "已收藏", iconHeartFill, p.accent
+				}
+				if pillButton(c.Key("save"), icon, label, p.hover.Over(p.bg), color).Clicked() {
+					a.toggleAlbum(*al)
+				}
 			})
 		})
 	})

@@ -55,6 +55,9 @@ type app struct {
 	mine, saved  []netease.Playlist // the listener's playlists: made, and saved
 	savingPl     map[int64]bool     // the playlists whose saving or its end is on its way
 	recPlaylists []netease.Playlist // the day's playlists picked for the listener
+	myAlbums     []netease.AlbumProfile
+	myAlbumsErr  string
+	myAlbumsBusy bool
 	login        loginState
 	accountOpen  bool           // the dropdown of the account row shows
 	naming       nameDialog     // the name of a playlist asked for
@@ -96,6 +99,7 @@ type app struct {
 	scrolled   route // the page trackList and pageScroll are of
 
 	mineCollapsed, savedCollapsed bool
+	albumsCollapsed               bool
 
 	query       string
 	searchBox   ui.Handle

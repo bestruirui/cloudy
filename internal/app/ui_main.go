@@ -230,6 +230,7 @@ func (a *app) sidebar(c *ui.Context) {
 				}
 				a.myPlaylists(c, "我的歌单", a.mine, true, &a.mineCollapsed)
 				a.myPlaylists(c, "收藏的歌单", a.saved, false, &a.savedCollapsed)
+				a.myAlbumsSection(c)
 			})
 			a.scrollFades(c, &a.navScroll)
 		})
