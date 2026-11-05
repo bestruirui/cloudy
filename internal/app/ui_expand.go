@@ -478,7 +478,11 @@ type navPillMatch struct{}
 
 // navPill is that pill, which slides from the page chosen before.
 func (a *app) navPill(c *ui.Context) {
-	pill := ui.Box(c.Key("nav-pill")).Absolute().Top(0).Left(0).Right(0).Bottom(0).Radius(8).PassThrough().Background(a.pal.press)
+	alpha := float32(0.12)
+	if a.pal.dark {
+		alpha = 0.16
+	}
+	pill := ui.Box(c.Key("nav-pill")).Absolute().Top(0).Left(0).Right(0).Bottom(0).Radius(8).PassThrough().Background(a.pal.accent.Alpha(alpha))
 	if a.motion == motionFull {
 		pill.Transition(ui.ElementTransition{Animation: &motionPane, Match: navPillMatch{}})
 	}
@@ -533,41 +537,11 @@ func (a *app) followCover() {
 	}
 }
 
-// sideWash lays the cover playing under the sidebar, blurred and faint, as
-// glass would show it if the window had anything behind it. A new cover comes
-// in over the last one, as the sidebar's own color goes. Over the window's
-// material, where the sidebar has no color of its own, this is what it takes
-// from the cover: solid says that it has one.
-func (a *app) sideWash(side ui.Element, solid bool) {
-	a.sideEdge = a.sideColor
-	art := a.npArt
-	now := backdrop(art)
-	if !a.settings.GlassPanels || now == nil {
-		return
-	}
-	if now != a.washBmp {
-		a.washWas, a.washBmp = a.washBmp, now
-		side.Jump("wash", 0)
-	}
-	in := float32(1)
-	if a.motion != motionOff {
-		in = side.AnimateTo("wash", 1, ui.Animation{Duration: 700 * time.Millisecond})
-	}
-	strength := float32(0.1)
-	if a.pal.dark {
-		strength = 0.14
-	}
-	// What the scrolling list's edges fade to, the cover's color on the whole.
-	if solid {
-		a.sideEdge = a.sideColor.Mix(art.tint, strength)
-	}
-	was := a.washWas
-	side.Draw(func(p *ui.Painter, r ui.Rect) {
-		if was != nil && in < 1 {
-			p.ImageRegion(was, ui.Rect{}, r, ui.ImageOptions{Tint: white.Alpha(strength * (1 - in))})
-		}
-		p.ImageRegion(now, ui.Rect{}, r, ui.ImageOptions{Tint: white.Alpha(strength * in)})
-	})
+// sidebarColor is the color of the sidebar: the theme's own. It used to take
+// a little of the cover playing, which tinted the sidebar with whatever was
+// on, so that it changed color with every song.
+func (a *app) sidebarColor() ui.Color {
+	return a.pal.sidebar
 }
 
 // rowGlow lights the row of the song playing from the bars at its start, a
@@ -584,11 +558,3 @@ func (a *app) rowGlow(row ui.Element) {
 	})
 }
 
-// sidebarColor is the sidebar with a little of the cover playing in it.
-func (a *app) sidebarColor() ui.Color {
-	art := a.npArt
-	if art == nil || art.failed {
-		return a.pal.sidebar
-	}
-	return a.pal.sidebar.Mix(art.tint, 0.07)
-}

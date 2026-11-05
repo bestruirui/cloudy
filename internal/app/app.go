@@ -170,7 +170,6 @@ type app struct {
 	rowsAt                time.Time        // when it started to
 	sideColor             ui.Color         // what the sidebar shows, as it eases
 	sideEdge              ui.Color         // what its list fades to, under its edges
-	washBmp, washWas      *ui.Bitmap       // the cover under the sidebar, and the one it replaces
 	flight                coverFlight      // a cover on its way to the page it opens
 	heldRoute             route            // the page opened from a card
 	heldURL               string           // and the cover the card gave it
@@ -189,6 +188,7 @@ type app struct {
 	settingsTab    settingsCategory
 	settingsScroll [settingsCategoryCount]ui.ScrollState
 	settingsDirty  bool            // a slider moved, and the settings are not kept yet
+	accentDraft    accentPick      // the color well open, and the color it shows
 	cacheUsed      int64           // the bytes the song cache takes, -1 until measured
 	updates        bool            // the update plugin is used (useUpdater)
 	fontList       []uiFont        // the fonts on offer here (fontChoices)

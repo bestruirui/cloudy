@@ -281,6 +281,54 @@ func (a *app) settingsBody(c *ui.Context) {
 						a.changed()
 					}
 				})
+				row("背景色", "窗口和侧栏的底色，按钮与高亮跟着它；深浅两套各自适配", func() {
+					dark := c.Theme().Dark
+					base := paletteFor(c.Theme())
+					ui.Row(c).Gap(9).AlignItems(ui.Center).Children(func() {
+						for _, ac := range accentColors {
+							dot := ui.ButtonBase(c.Key("accent-"+ac.id)).Size(24, 24).Radius(999).
+								FocusRing(false).Label("背景色：" + ac.label)
+							fill := base.accent
+							if ac.hex != "" {
+								fill = accentFor(ui.Hex(ac.hex), dark)
+							}
+							dot.Background(fill)
+							if s.Accent == ac.hex {
+								dot.Border(2, ink.text)
+							} else {
+								dot.Border(1, ink.line)
+							}
+							if dot.Clicked() {
+								s.Accent, s.AccentCover = ac.hex, false
+								a.changed()
+							}
+						}
+						own := s.Accent != ""
+						for _, ac := range accentColors {
+							if ac.hex == s.Accent {
+								own = false
+							}
+						}
+						wheel := ui.ButtonBase(c.Key("accent-custom")).Size(24, 24).Radius(999).
+							FocusRing(false).Label("自定义主题色")
+						wheel.Draw(func(pt *ui.Painter, r ui.Rect) {
+							colorWheel(pt, r)
+							if own {
+								pt.Stroke(r, ink.text, 999, 2)
+							} else {
+								pt.Stroke(r, ink.line, 999, 1)
+							}
+						})
+						if wheel.Clicked() {
+							draft := base.accent
+							if s.Accent != "" {
+								draft = ui.Hex(s.Accent)
+							}
+							a.accentDraft = accentPick{open: true, color: draft}
+							a.redraw()
+						}
+					})
+				})
 				row("主题色跟随封面", "按钮和高亮使用当前歌曲封面的颜色，而不是网易云红", func() {
 					if ui.Switch(c.Key("accent-cover"), &s.AccentCover).Label("主题色跟随封面").Changed() {
 						a.changed()

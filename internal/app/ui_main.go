@@ -15,6 +15,11 @@ const sidebarWidth = 232
 func (a *app) view(c *ui.Context) {
 	t := *c.Theme()
 	a.pal = paletteFor(&t)
+	if a.settings.Accent != "" {
+		// The color the listener chose: the buttons take it, and the window
+		// and the sidebar a breath of it.
+		a.pal = themeAccent(a.pal, a.settings.Accent)
+	}
 	a.motion = a.motionLevel(c)
 	a.followCover()
 	if accent, ok := a.coverAccent(); ok && a.settings.AccentCover {
@@ -58,11 +63,19 @@ func (a *app) view(c *ui.Context) {
 				return
 			}
 			side := ui.Column(c).Width(sidebarWidth)
-			if !c.Vibrancy() {
+			switch {
+			case !c.Vibrancy():
 				a.sideColor = side.AnimateColor("tint", a.sidebarColor(), ui.Animation{Duration: 700 * time.Millisecond})
 				side.Background(a.sideColor)
+				a.sideEdge = a.sideColor
+			case a.settings.Accent != "":
+				// The window's material shows through the sidebar, which has
+				// no color of its own: lay the color over it, thin enough
+				// that the material still shows, so the color covers the
+				// sidebar too.
+				a.sideColor = side.AnimateColor("tint", a.sidebarColor(), ui.Animation{Duration: 700 * time.Millisecond})
+				side.Background(a.sideColor.Alpha(0.55))
 			}
-			a.sideWash(side, !c.Vibrancy())
 			side.Children(func() { a.sidebar(c) })
 			// Keyed, so that a popover of the sidebar opening or closing
 			// keeps what the page and its bars hold, their edges' fades.
@@ -82,6 +95,7 @@ func (a *app) view(c *ui.Context) {
 	a.playlistNameDialog(c)
 	a.deletePlaylistDialog(c)
 	a.settingsPanel(c)
+	a.accentDialog(c)
 	a.menuOverlay(c)
 	a.paneToasts(c)
 	if a.toast != "" {

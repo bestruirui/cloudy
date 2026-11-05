@@ -49,6 +49,10 @@ type settings struct {
 	Motion string `json:"motion,omitempty"`
 	// AccentCover takes the accent from the cover playing: else the app's red.
 	AccentCover bool `json:"accentCover"`
+	// Accent is the color the listener gave the app, #RRGGBB, or empty for
+	// the app's red: the light and the dark take their own shade of it, and
+	// the window and the sidebar a breath of it.
+	Accent string `json:"accent,omitempty"`
 	// BarSpin turns the cover in the bar as a record while music plays. Off
 	// is kept too.
 	BarSpin bool `json:"barSpin"`
