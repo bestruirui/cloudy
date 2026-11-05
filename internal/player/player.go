@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"math/rand/v2"
+	"path/filepath"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -52,16 +53,19 @@ type Player struct {
 	feeding  bool // the feed is asked
 	awaiting bool // at the queue's end, for what the feed gives
 
-	track   *netease.Track
-	out     *audio.Player
-	stream  stream
-	info    *netease.Stream // what the current track streams
-	fade    fader
-	gain    float64 // the current track's normalizing gain
-	loading bool
-	playing bool // what the listener wants: false while paused
-	err     string
-	gen     int // counts loads, to drop the results of stale ones
+	track      *netease.Track
+	out        *audio.Player
+	stream     stream
+	info       *netease.Stream // what the current track streams
+	fade       fader
+	gain       float64 // the current track's normalizing gain
+	loading    bool
+	playing    bool // what the listener wants: false while paused
+	err        string
+	gen        int                // counts loads, to drop the results of stale ones
+	cancelLoad context.CancelFunc // stops a load that is no longer selected
+	retryTimer *time.Timer
+	retries    int // reconnections for the current selection
 
 	lyrics       []lyrics.Line
 	lyricsLoaded bool
@@ -444,7 +448,7 @@ func (p *Player) Prev() {
 	if at < 0 {
 		at = len(p.order) - 1
 	}
-	p.load(at)
+	p.loadSkipping(at, 0, true, 0, -1)
 }
 
 // Jump plays the queue's track i.
@@ -464,9 +468,12 @@ func (p *Player) TogglePlay() {
 		case p.loading:
 			// It plays once loaded, or not.
 			p.playing = !p.playing
+			if !p.playing && p.retryTimer != nil {
+				p.stop()
+			}
 			p.sync()
 		case len(p.order) > 0:
-			p.loadSkipping(max(p.at, 0), 0, true, p.pending)
+			p.loadSkipping(max(p.at, 0), 0, true, p.pending, 1)
 		}
 		return
 	}
@@ -596,28 +603,53 @@ func (p *Player) Levels() ([Bands]float32, bool) {
 }
 
 func (p *Player) stop() {
+	p.gen++
+	if p.retryTimer != nil {
+		p.retryTimer.Stop()
+		p.retryTimer = nil
+	}
+	if p.cancelLoad != nil {
+		p.cancelLoad()
+		p.cancelLoad = nil
+	}
 	if out := p.out; out != nil {
 		// Paused first, it fades out over a few milliseconds, rather than
 		// stopping with a click.
 		out.Pause()
-		time.AfterFunc(100*time.Millisecond, out.Close)
+		s := p.stream
+		time.AfterFunc(100*time.Millisecond, func() {
+			// Closing the audio player alone cannot wake a decoder waiting
+			// for network bytes, so cancel its download after fading out.
+			if s != nil {
+				dl, _ := s.source()
+				dl.Close()
+			}
+			out.Close()
+		})
 	}
 	p.out, p.stream, p.info = nil, nil, nil
+	p.loading = false
 	p.seeking = false
 	p.fade.attach(nil, 1)
 }
 
 // load plays the track at order[at], skipping those that cannot play.
 func (p *Player) load(at int) {
-	p.loadSkipping(at, 0, true, 0)
+	p.loadSkipping(at, 0, true, 0, 1)
 }
 
 // loadSkipping loads the track at order[at], to play or not, from from,
 // skipping those that cannot play: skipped of them so far.
-func (p *Player) loadSkipping(at, skipped int, play bool, from time.Duration) {
+func (p *Player) loadSkipping(at, skipped int, play bool, from time.Duration, direction int) {
+	p.loadAttempt(at, skipped, play, from, direction, 0)
+}
+
+func (p *Player) loadAttempt(at, skipped int, play bool, from time.Duration, direction, retries int) {
 	p.stop()
-	p.gen++
+	p.retries = retries
 	gen := p.gen
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	p.cancelLoad = cancel
 	p.at = at
 	t := p.queue[p.order[at]]
 	p.track = &t
@@ -627,6 +659,10 @@ func (p *Player) loadSkipping(at, skipped int, play bool, from time.Duration) {
 	p.pending = from
 	p.announce(&t, nil)
 	p.refill()
+	level := "exhigh"
+	if p.Quality != nil {
+		level = p.Quality()
+	}
 
 	go func() {
 		cover, err := netease.Fetch(netease.Sized(t.Album.PicURL, 600))
@@ -653,11 +689,7 @@ func (p *Player) loadSkipping(at, skipped int, play bool, from time.Duration) {
 		})
 	}()
 	go func() {
-		level := "exhigh"
-		if p.Quality != nil {
-			level = p.Quality()
-		}
-		info, s, err := p.open(t, level)
+		info, s, err := p.openContext(ctx, t, level)
 		p.post(func() {
 			if gen != p.gen {
 				if s != nil {
@@ -665,32 +697,40 @@ func (p *Player) loadSkipping(at, skipped int, play bool, from time.Duration) {
 				}
 				return
 			}
+			p.cancelLoad = nil
+			cancel()
 			p.loading = false
 			if err != nil {
+				if p.retryLoad(skipped, direction, err) {
+					return
+				}
 				p.err = err.Error()
 				switch {
-				case err != netease.ErrUnavailable:
+				case !errors.Is(err, netease.ErrUnavailable):
 				case t.ProgramID != 0:
 					p.err = "这期节目需要购买才能收听"
 				default:
 					p.err = "这首歌需要 VIP 才能播放"
 				}
-				// Skip what cannot play, unless nothing in the queue can.
-				if skipped+1 < len(p.order) {
-					next := at + 1
-					if next >= len(p.order) {
-						next = 0
+				// Only an unavailable song is skipped. A failed connection or
+				// cache must not send the listener through the whole queue.
+				if errors.Is(err, netease.ErrUnavailable) && skipped+1 < len(p.order) {
+					next := (p.at + direction + len(p.order)) % len(p.order)
+					if direction > 0 && next == 0 && p.feed != nil {
+						p.awaitFeed()
+						return
 					}
-					p.loadSkipping(next, skipped+1, p.playing, 0)
+					p.loadSkipping(next, skipped+1, p.playing, 0, direction)
 				} else {
 					p.playing = false
 					p.sync()
 				}
 				return
 			}
-			p.stream, p.info = s, info
+			checked := &checkedStream{stream: s}
+			p.stream, p.info = checked, info
 			p.gain = normGain(info)
-			p.out = audio.NewPlayer(s)
+			p.out = audio.NewPlayer(checked)
 			// From its middle, as a session picked up again, it fades in.
 			level := 1.0
 			if p.pending > 0 {
@@ -701,7 +741,7 @@ func (p *Player) loadSkipping(at, skipped int, play bool, from time.Duration) {
 			p.out.OnEnd(func() {
 				p.post(func() {
 					if gen == p.gen {
-						p.ended()
+						p.finish(checked)
 					}
 				})
 			})
@@ -721,17 +761,50 @@ func (p *Player) loadSkipping(at, skipped int, play bool, from time.Duration) {
 // open opens track t's audio at level: kept in the cache, or else
 // streamed into it, and kept once it has all come in.
 func (p *Player) open(t netease.Track, level string) (*netease.Stream, stream, error) {
-	dl, info, ok := p.Cache.lookup(t.ID, level)
-	if !ok {
-		var err error
-		info, err = netease.SongURL(t.ID, level)
-		if err != nil {
-			return nil, nil, err
-		}
-		dl = p.Cache.download(t.ID, info)
+	return p.openContext(context.Background(), t, level)
+}
+
+var songURL = netease.SongURLContext
+
+func (p *Player) openContext(ctx context.Context, t netease.Track, level string) (*netease.Stream, stream, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, nil, err
 	}
-	s, err := openStream(dl, t.Duration)
+	dl, info, ok := p.Cache.lookup(t.ID, level)
+	if ok {
+		s, err := openStream(dl, t.Duration)
+		if err == nil {
+			return info, s, nil
+		}
+		path := dl.file.Name()
+		dl.Close()
+		// A corrupt cached copy is retried from the network for this
+		// song alone; it is never treated as a missing playback right.
+		p.Cache.remove(path)
+	}
+	info, err := songURL(ctx, t.ID, level)
 	if err != nil {
+		return nil, nil, err
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, nil, err
+	}
+	dl = p.Cache.download(t.ID, info)
+	stop := context.AfterFunc(ctx, dl.Close)
+	s, err := openStream(dl, t.Duration)
+	if !stop() || ctx.Err() != nil {
+		if err == nil {
+			s.Close()
+		}
+		dl.Close()
+		return nil, nil, ctx.Err()
+	}
+	if err != nil {
+		dl.mu.Lock()
+		if dl.err != nil {
+			err = dl.err
+		}
+		dl.mu.Unlock()
 		dl.Close()
 		return nil, nil, err
 	}
@@ -781,5 +854,40 @@ func (p *Player) Restore(s Session) {
 	}
 	p.queue, p.order = s.Queue, s.Order
 	p.shuffle, p.repeat = s.Shuffle, s.Repeat%3
-	p.loadSkipping(s.At, 0, false, time.Duration(s.Position)*time.Millisecond)
+	p.loadSkipping(s.At, 0, false, time.Duration(s.Position)*time.Millisecond, 1)
+}
+
+// finish keeps a broken stream from looking like a song played to its end.
+func (p *Player) finish(s *checkedStream) {
+	err := s.Err()
+	if err == nil && p.out.Duration()-p.out.Position() > 2*time.Second {
+		err = errors.New("歌曲音频不完整，请重新加载")
+	}
+	if err != nil {
+		p.pending = p.Position()
+		p.err = "播放中断：" + err.Error()
+		p.stop()
+		if p.Cache != nil {
+			// A stream can open from its header and fail on its audio later.
+			// Let a retry fetch a fresh copy instead of reopening that cache.
+			dl, _ := s.source()
+			dl.mu.Lock()
+			path := ""
+			if dl.file != nil && dl.part == "" {
+				path = dl.file.Name()
+			}
+			dl.mu.Unlock()
+			if filepath.Dir(path) == p.Cache.dir {
+				s.Close()
+				p.Cache.remove(path)
+			}
+		}
+		if p.retryLoad(0, 1, err) {
+			return
+		}
+		p.playing = false
+		p.sync()
+		return
+	}
+	p.ended()
 }

@@ -1,6 +1,7 @@
 package netease
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -387,6 +388,24 @@ func ArtistLatestSongs(id int64, limit int) ([]Track, error) {
 
 var ErrUnavailable = errors.New("this song isn't available to stream")
 
+// StreamError means the address request failed, not that the song cannot play.
+type StreamError struct {
+	Code  int
+	Cause error
+}
+
+func (e *StreamError) Error() string {
+	if e.Cause != nil {
+		return "获取播放地址失败：" + e.Cause.Error()
+	}
+	if e.Code == 0 || e.Code == 200 {
+		return "暂未获取到播放地址"
+	}
+	return fmt.Sprintf("获取播放地址失败（%d）", e.Code)
+}
+
+func (e *StreamError) Unwrap() error { return e.Cause }
+
 // Stream is where a track streams from, and what it is.
 type Stream struct {
 	URL  string `json:"-"`
@@ -412,6 +431,11 @@ func Lossless(level string) bool { return level == "lossless" || level == "hires
 // Levels) or the best below it the listener may play. It goes through
 // the eapi, which carries the session, so VIP songs play for subscribers.
 func SongURL(id int64, level string) (*Stream, error) {
+	return SongURLContext(context.Background(), id, level)
+}
+
+// SongURLContext stops asking for a stream when the listener changes tracks.
+func SongURLContext(ctx context.Context, id int64, level string) (*Stream, error) {
 	var res struct {
 		Code int `json:"code"`
 		Data []struct {
@@ -426,16 +450,22 @@ func SongURL(id int64, level string) (*Stream, error) {
 		encode = "flac"
 	}
 	data := map[string]any{"ids": fmt.Sprintf("[%d]", id), "level": level, "encodeType": encode}
-	if err := eapiPost("/api/song/enhance/player/url/v1", data, &res); err != nil {
-		return nil, err
+	if err := eapiPostContext(ctx, "/api/song/enhance/player/url/v1", data, &res); err != nil {
+		return nil, &StreamError{Cause: err}
 	}
-	if len(res.Data) == 0 || res.Data[0].URL == "" {
-		return nil, ErrUnavailable
+	if res.Code != 0 && res.Code != 200 {
+		return nil, &StreamError{Code: res.Code}
+	}
+	if len(res.Data) == 0 {
+		return nil, &StreamError{Code: res.Code}
 	}
 	d := res.Data[0]
 	// A preview of a VIP song is no song.
 	if len(d.FreeTrialInfo) > 0 && string(d.FreeTrialInfo) != "null" {
 		return nil, ErrUnavailable
+	}
+	if strings.TrimSpace(d.URL) == "" {
+		return nil, &StreamError{Code: res.Code}
 	}
 	s := d.Stream
 	s.Type = strings.ToLower(s.Type)

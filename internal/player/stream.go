@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/egoist/mygo/audio"
 	gomp3 "github.com/hajimehoshi/go-mp3"
@@ -93,8 +94,21 @@ func opened(f *os.File, size int64) *download {
 	return d
 }
 
+type streamHTTPError struct {
+	code   int
+	status string
+}
+
+func (e *streamHTTPError) Error() string { return e.status }
+
 func (d *download) run(ctx context.Context, url string) {
 	defer d.release()
+	// A stalled connection gets reopened by the player. Resetting on bytes
+	// leaves long songs unlimited, while a dead socket cannot wait forever.
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+	idle := time.AfterFunc(20*time.Second, func() { cancel(context.DeadlineExceeded) })
+	defer idle.Stop()
 	finish := func(err error) {
 		d.mu.Lock()
 		d.done, d.err = true, err
@@ -109,24 +123,29 @@ func (d *download) run(ctx context.Context, url string) {
 	req.Header.Set("User-Agent", netease.UserAgent)
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		finish(err)
+		finish(cmp.Or(context.Cause(ctx), err))
 		return
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		finish(errors.New(res.Status))
+		finish(&streamHTTPError{code: res.StatusCode, status: res.Status})
 		return
 	}
 	buf := make([]byte, 64<<10)
 	for {
 		n, err := res.Body.Read(buf)
 		if n > 0 {
+			idle.Reset(20 * time.Second)
 			if err := d.write(buf[:n]); err != nil {
 				finish(err)
 				return
 			}
 		}
 		if err == io.EOF {
+			if d.size > 0 && d.n < d.size {
+				finish(io.ErrUnexpectedEOF)
+				return
+			}
 			// Whole if as long as promised: the cache's.
 			if d.keep != nil && d.part != "" && (d.size <= 0 || d.n == d.size) {
 				d.hand()
@@ -135,7 +154,7 @@ func (d *download) run(ctx context.Context, url string) {
 			return
 		}
 		if err != nil {
-			finish(err)
+			finish(cmp.Or(context.Cause(ctx), err))
 			return
 		}
 	}
@@ -373,6 +392,37 @@ type stream interface {
 	Close() error
 	// source returns the download decoded, and its spectrum.
 	source() (*download, *spectrum)
+}
+
+// checkedStream preserves decode errors which audio.OnEnd otherwise reports
+// in the same way as the natural end of a song.
+type checkedStream struct {
+	stream
+	mu  sync.Mutex
+	err error
+}
+
+func (s *checkedStream) Read(dst []float32) (int, error) {
+	n, err := s.stream.Read(dst)
+	if err != nil && err != io.EOF {
+		s.mu.Lock()
+		s.err = err
+		s.mu.Unlock()
+	}
+	return n, err
+}
+
+func (s *checkedStream) Err() error {
+	s.mu.Lock()
+	err := s.err
+	s.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	dl, _ := s.source()
+	dl.mu.Lock()
+	defer dl.mu.Unlock()
+	return dl.err
 }
 
 // openStream opens the song dl fetches, MP3 or FLAC, as its first bytes
