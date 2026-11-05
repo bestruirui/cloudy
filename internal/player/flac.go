@@ -25,6 +25,7 @@ type flacStream struct {
 	pos   int64     // the frame Read returns next
 	skip  int64     // frames to drop before it, after a seek
 	pend  []float32 // decoded, and not yet read: stereo
+	buf   []float32 // owns the frame buffer after pend has been consumed
 	spec  *spectrum
 	drop  func() // lets the download go, as the stream closes
 	once  sync.Once
@@ -134,14 +135,14 @@ func (s *flacStream) decode(f *frame.Frame) {
 		right = f.Subframes[1].Samples
 	}
 	scale := float32(1 / math.Exp2(float64(f.BitsPerSample-1)))
-	if cap(s.pend) < int(n)*2 {
-		s.pend = make([]float32, 0, n*2)
+	if cap(s.buf) < int(n)*2 {
+		s.buf = make([]float32, 0, n*2)
 	}
-	out := s.pend[:0]
+	out := s.buf[:0]
 	for i := from; i < n; i++ {
 		out = append(out, float32(left[i])*scale, float32(right[i])*scale)
 	}
-	s.pend = out
+	s.buf, s.pend = out, out
 }
 
 // SetPosition goes to frame: to the frame of FLAC holding it, then drops
