@@ -189,6 +189,7 @@ type app struct {
 	settingsScroll [settingsCategoryCount]ui.ScrollState
 	settingsDirty  bool            // a slider moved, and the settings are not kept yet
 	accentDraft    accentPick      // the color well open, and the color it shows
+	update         updateState     // the update pane, and the update it found
 	cacheUsed      int64           // the bytes the song cache takes, -1 until measured
 	updates        bool            // the update plugin is used (useUpdater)
 	fontList       []uiFont        // the fonts on offer here (fontChoices)
@@ -313,6 +314,9 @@ func Run() error {
 		a.win.OnFocus(a.freshenHome)
 		a.applyTray()
 		a.applyDeskLyrics()
+		// A version that came out since the app last ran shows soon after
+		// it opens, and one a day after that, if the listener asks for it.
+		go a.autoCheckUpdates()
 		if shotHook != nil {
 			shotHook(a)
 		}

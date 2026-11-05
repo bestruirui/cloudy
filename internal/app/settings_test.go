@@ -16,8 +16,8 @@ import (
 
 // Switching categories keeps edited settings and each category's scroll position.
 func TestSettingsCategoryNavigation(t *testing.T) {
-	checks, downloads, checked := true, false, 0
-	defer fakeUpdater(&checks, &downloads, &checked)()
+	asked := make(chan struct{}, 1)
+	defer fakeUpdateCheck(asked)()
 	a := newTestApp()
 	a.settings = defaultSettings()
 	a.settingsOpen, a.updates = true, true
@@ -67,18 +67,20 @@ func TestSettingsCategoryNavigation(t *testing.T) {
 	choose("播放", settingsPlayback)
 	choose("关于", settingsAbout)
 	toggle("自动安装更新", "在后台下载并装好新版本，不弹窗，下次打开软件时生效")
-	if !downloads {
+	if !a.settings.UpdateInstall {
 		t.Fatal("the update preference did not change")
 	}
 	choose("常规", settingsGeneral)
 	choose("关于", settingsAbout)
-	if !downloads {
+	if !a.settings.UpdateInstall {
 		t.Fatal("returning to about lost the update preference")
 	}
 	if err := tt.Click("检查更新"); err != nil {
 		t.Fatal(err)
 	}
-	if checked != 1 {
+	select {
+	case <-asked:
+	case <-time.After(2 * time.Second):
 		t.Fatal("the about category did not check for updates")
 	}
 }
@@ -89,8 +91,6 @@ func TestSettingsCategoryFrames(t *testing.T) {
 	if dir == "" {
 		t.Skip()
 	}
-	checks, downloads, checked := true, false, 0
-	defer fakeUpdater(&checks, &downloads, &checked)()
 	for _, size := range []struct{ w, h int }{{1180, 780}, {880, 580}} {
 		for category := settingsGeneral; category < settingsCategoryCount; category++ {
 			a := newTestApp()

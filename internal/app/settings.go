@@ -53,6 +53,12 @@ type settings struct {
 	// the app's red: the light and the dark take their own shade of it, and
 	// the window and the sidebar a breath of it.
 	Accent string `json:"accent,omitempty"`
+	// UpdateChecks checks for new versions soon after launch and then once
+	// a day; UpdateInstall installs them without asking. UpdateChecked is
+	// when the app last asked for one, in Unix seconds.
+	UpdateChecks  bool  `json:"updateChecks"`
+	UpdateInstall bool  `json:"updateInstall"`
+	UpdateChecked int64 `json:"updateChecked,omitempty"`
 	// BarSpin turns the cover in the bar as a record while music plays. Off
 	// is kept too.
 	BarSpin bool `json:"barSpin"`
@@ -115,7 +121,7 @@ type settings struct {
 }
 
 func defaultSettings() settings {
-	return settings{BarSpin: true, GlobalKeys: true, NotchActivity: true, Quality: "exhigh", Appearance: "system", LiquidGlass: true, NpLight: true, GlowLevel: 0.5, GlassClear: 0.6, GlassBend: 0.3, GlassPanels: true, Volume: 0.8, Normalize: true, AppIcon: "dock-and-menubar", CacheMB: 2048, Captions: true}
+	return settings{UpdateChecks: true, BarSpin: true, GlobalKeys: true, NotchActivity: true, Quality: "exhigh", Appearance: "system", LiquidGlass: true, NpLight: true, GlowLevel: 0.5, GlassClear: 0.6, GlassBend: 0.3, GlassPanels: true, Volume: 0.8, Normalize: true, AppIcon: "dock-and-menubar", CacheMB: 2048, Captions: true}
 }
 
 func settingsPath() (string, error) {

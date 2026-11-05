@@ -96,6 +96,7 @@ func (a *app) view(c *ui.Context) {
 	a.deletePlaylistDialog(c)
 	a.settingsPanel(c)
 	a.accentDialog(c)
+	a.updateDialog(c)
 	a.menuOverlay(c)
 	a.paneToasts(c)
 	if a.toast != "" {

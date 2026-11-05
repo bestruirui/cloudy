@@ -1,40 +1,39 @@
 package app
 
 import (
+	"context"
+	"image/png"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
 	"netease-music-mygo/internal/netease"
 )
 
-// fakeUpdater swaps the update plugin's preferences for ones in memory,
-// counting the checks asked for, until the returned function puts them
-// back.
-func fakeUpdater(checks, downloads *bool, checked *int) func() {
-	check, getChecks, setChecks := checkForUpdates, updateChecks, setUpdateChecks
-	getDownloads, setDownloads, last := updateDownloads, setUpdateDownloads, lastUpdateCheck
-	checkForUpdates = func() { *checked++ }
-	updateChecks = func() bool { return *checks }
-	setUpdateChecks = func(on bool) { *checks = on }
-	updateDownloads = func() bool { return *downloads }
-	setUpdateDownloads = func(on bool) { *downloads = on }
-	lastUpdateCheck = func() time.Time { return time.Time{} }
-	return func() {
-		checkForUpdates, updateChecks, setUpdateChecks = check, getChecks, setChecks
-		updateDownloads, setUpdateDownloads, lastUpdateCheck = getDownloads, setDownloads, last
+// fakeUpdateCheck swaps the check for one that says it was asked, and an
+// install that does nothing, until the returned function puts them back.
+func fakeUpdateCheck(asked chan<- struct{}) func() {
+	check, install := checkUpdate, installUpdate
+	checkUpdate = func(context.Context) (*mygo.Update, error) {
+		select {
+		case asked <- struct{}{}:
+		default:
+		}
+		return nil, nil
 	}
+	installUpdate = func(*mygo.Update, func(int64, int64)) error { return nil }
+	return func() { checkUpdate, installUpdate = check, install }
 }
 
-// 自动安装更新 has the updater install updates without asking, and turning
-// off the reminder turns checking off in it and takes the choice away too,
-// as nothing would find the updates to install.
+// 自动安装更新 has the app install updates without asking, and turning off
+// the reminder turns checking off with it, as nothing would find the updates
+// to install.
 func TestUpdateSettings(t *testing.T) {
-	checks, downloads, checked := true, false, 0
-	defer fakeUpdater(&checks, &downloads, &checked)()
 	a := newTestApp()
 	a.settings = defaultSettings()
 	a.updates = true
@@ -54,11 +53,11 @@ func TestUpdateSettings(t *testing.T) {
 		tt.Frame()
 	}
 	toggle("自动安装更新", "在后台下载并装好新版本，不弹窗，下次打开软件时生效")
-	if !downloads {
+	if !a.settings.UpdateInstall {
 		t.Fatal("still asks before installing updates")
 	}
 	toggle("提醒新版本", "每天检查一次是否有新版本")
-	if checks {
+	if a.settings.UpdateChecks {
 		t.Fatal("checks for updates still")
 	}
 	if tt.HasText("自动安装更新") {
@@ -68,8 +67,8 @@ func TestUpdateSettings(t *testing.T) {
 
 // 检查更新 in the settings checks for updates as the user asked.
 func TestCheckForUpdatesFromSettings(t *testing.T) {
-	checks, downloads, checked := true, false, 0
-	defer fakeUpdater(&checks, &downloads, &checked)()
+	asked := make(chan struct{}, 1)
+	defer fakeUpdateCheck(asked)()
 	a := newTestApp()
 	a.settings = defaultSettings()
 	a.updates = true
@@ -80,9 +79,98 @@ func TestCheckForUpdatesFromSettings(t *testing.T) {
 	if err := tt.Click("检查更新"); err != nil {
 		t.Fatal(err)
 	}
-	if checked != 1 {
-		t.Fatalf("checked %d times", checked)
+	select {
+	case <-asked:
+	case <-time.After(2 * time.Second):
+		t.Fatal("did not check for updates")
 	}
+}
+
+// A check that finds nothing says so, one that finds an update offers it,
+// and one that fails says why; an install the listener asked for leaves the
+// asking out.
+func TestCheckedUpdates(t *testing.T) {
+	a := newTestApp()
+	a.settings = defaultSettings()
+	a.checkedUpdates(nil, nil)
+	if !a.update.checked || a.update.up != nil || a.update.err != "" {
+		t.Fatalf("after an up-to-date check: %+v", a.update)
+	}
+	a.checkedUpdates(&mygo.Update{Version: "9.9.9"}, nil)
+	if a.update.up == nil || !a.update.open {
+		t.Fatalf("an update found is not offered: %+v", a.update)
+	}
+	a.checkedUpdates(nil, mygo.ErrUpdatesDisabled)
+	if !strings.Contains(a.update.err, "不能自动更新") {
+		t.Errorf("a check that cannot run says %q", a.update.err)
+	}
+
+	installed := make(chan struct{}, 1)
+	real := installUpdate
+	installUpdate = func(*mygo.Update, func(int64, int64)) error {
+		select {
+		case installed <- struct{}{}:
+		default:
+		}
+		return nil
+	}
+	defer func() { installUpdate = real }()
+	a.settings.UpdateInstall = true
+	a.checkedUpdates(&mygo.Update{Version: "9.9.9"}, nil)
+	select {
+	case <-installed:
+	case <-time.After(2 * time.Second):
+		t.Fatal("did not install the update it was told to")
+	}
+	if a.update.open {
+		t.Error("asked about an update it installs in the background")
+	}
+}
+
+// With NM_FRAMES set, saves the update pane in its states, in the light and
+// the dark, for looking at them.
+func TestUpdatePaneFrames(t *testing.T) {
+	dir := os.Getenv("NM_FRAMES")
+	if dir == "" {
+		t.Skip("set NM_FRAMES to a directory to save frames")
+	}
+	up := &mygo.Update{
+		Version: "1.2.0",
+		Date:    time.Date(2026, 11, 4, 0, 0, 0, 0, time.UTC),
+		Notes:   "## 1.2.0\n\n- 设置里可以选背景色，深浅两套各自适配\n- 侧栏不再跟着封面变色\n- 修好了几个小问题",
+	}
+	save := func(name string, tt *ui.Tester) {
+		tt.Advance(time.Second)
+		tt.Frame()
+		f, err := os.Create(filepath.Join(dir, name+".png"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer f.Close()
+		if err := png.Encode(f, tt.Image()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	show := func(dark bool, u updateState) *ui.Tester {
+		a := newTestApp()
+		accentHome(a)
+		a.update = u
+		tt := ui.NewTester(a.view, 1280, 820)
+		tt.SetDark(dark)
+		return tt
+	}
+	for _, dark := range []bool{false, true} {
+		appearance := "light"
+		if dark {
+			appearance = "dark"
+		}
+		save("update-found-"+appearance, show(dark, updateState{open: true, checked: true, up: up}))
+	}
+	save("update-checking", show(true, updateState{open: true, checking: true}))
+	save("update-downloading", show(true, updateState{open: true, up: up, downloading: true, got: 38, total: 100}))
+	save("update-ready", show(true, updateState{open: true, up: up, ready: true}))
+	save("update-error", show(true, updateState{open: true, checked: true, err: updateError(mygo.ErrUpdatesDisabled)}))
+	save("update-current", show(false, updateState{open: true, checked: true}))
 }
 
 // Cloud-nya's data moves to Cloudy's directory, rather than the data of the
