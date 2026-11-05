@@ -15,10 +15,6 @@ const sidebarWidth = 232
 func (a *app) view(c *ui.Context) {
 	t := *c.Theme()
 	a.pal = paletteFor(&t)
-	if a.settings.Paper {
-		// The content is a sheet of paper; the sidebar keeps its color.
-		a.pal = paperInk(a.pal)
-	}
 	a.motion = a.motionLevel(c)
 	a.followCover()
 	if accent, ok := a.coverAccent(); ok && a.settings.AccentCover {
@@ -70,9 +66,7 @@ func (a *app) view(c *ui.Context) {
 			side.Children(func() { a.sidebar(c) })
 			// Keyed, so that a popover of the sidebar opening or closing
 			// keeps what the page and its bars hold, their edges' fades.
-			main := ui.Box(c.Key("main")).Grow(1)
-			a.paperBackdrop(main, p)
-			main.Children(func() {
+			ui.Box(c.Key("main")).Grow(1).Background(p.bg).Children(func() {
 				a.content(c)
 				// The bars float over the page, which scrolls under them:
 				// positioned, they paint over it.

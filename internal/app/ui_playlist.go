@@ -163,11 +163,6 @@ func (a *app) pageAura(page ui.Element, url string) {
 	if a.pal.dark {
 		strength = 0.6
 	}
-	if a.settings.Paper {
-		// Over the sheet the cover is only a tint: any more and the paper
-		// stops reading as paper.
-		strength *= 0.4
-	}
 	page.Draw(func(p *ui.Painter, r ui.Rect) {
 		gone := clamp01(a.headGone / 420)
 		area := ui.Rect{X: r.X, Y: r.Y, W: r.W, H: min(r.H, 620)}

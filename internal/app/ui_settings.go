@@ -281,59 +281,6 @@ func (a *app) settingsBody(c *ui.Context) {
 						a.changed()
 					}
 				})
-				row("纸质背景", "右侧内容区换成暖色纸张，浅色和深色各有自己的纸色", func() {
-					if ui.Switch(c.Key("paper"), &s.Paper).Label("纸质背景").Changed() {
-						a.changed()
-					}
-				})
-				row("纸张颜色", "纸张的色调；其余位置先留着，以后再添别的纸", func() {
-					ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-						for _, pc := range paperSheets {
-							dot := ui.ButtonBase(c.Key("paper-"+pc.id)).Size(24, 24).Radius(999).
-								FocusRing(false).Label("纸张颜色：" + pc.label).Disabled(!s.Paper)
-							fill := pc.light
-							if c.Theme().Dark {
-								fill = pc.dark
-							}
-							dot.Background(fill)
-							ring, width := ink.line, float32(1)
-							if s.PaperColor == pc.id {
-								ring, width = ink.text, 2
-							}
-							dot.Border(width, ring)
-							if !s.Paper {
-								dot.Opacity(0.4)
-							}
-							if dot.Clicked() {
-								s.PaperColor = pc.id
-								a.changed()
-							}
-						}
-						for i := range 3 {
-							more := ui.Box(c.Key(fmt.Sprint("paper-more-", i))).Size(24, 24).Radius(999).Border(1, ink.line)
-							opacity := float32(0.35)
-							if !s.Paper {
-								opacity = 0.2
-							}
-							more.Opacity(opacity)
-						}
-					})
-				})
-				if s.Paper {
-					row("纸张质感", "纸纹的粗细：细到几乎看不见，或粗到能摸出来", func() {
-						textures := []string{"", "soft", "coarse"}
-						i := 0
-						for k, m := range textures {
-							if m == s.PaperTexture {
-								i = k
-							}
-						}
-						if a.segmented(c.Key("paper-texture"), &i, "细腻", "柔和", "粗糙") {
-							s.PaperTexture = textures[i]
-							a.changed()
-						}
-					})
-				}
 				row("主题色跟随封面", "按钮和高亮使用当前歌曲封面的颜色，而不是网易云红", func() {
 					if ui.Switch(c.Key("accent-cover"), &s.AccentCover).Label("主题色跟随封面").Changed() {
 						a.changed()

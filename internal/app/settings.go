@@ -28,12 +28,6 @@ type settings struct {
 	Quality string `json:"quality"`
 	// Appearance is light, dark, or system to follow the system.
 	Appearance string `json:"appearance"`
-	// Paper draws the content on a warm sheet, of a color of paperColors and
-	// a fiber of one of the textures, rather than on the flat background.
-	// Off is kept too, without omitempty.
-	Paper        bool   `json:"paper"`
-	PaperColor   string `json:"paperColor,omitempty"`
-	PaperTexture string `json:"paperTexture,omitempty"`
 	// Font is the font of the app's text (uiFonts): empty for the default.
 	Font string `json:"font,omitempty"`
 	// LiquidGlass floats the player bar as a capsule of glass. Off is kept
@@ -117,7 +111,7 @@ type settings struct {
 }
 
 func defaultSettings() settings {
-	return settings{Paper: true, BarSpin: true, GlobalKeys: true, NotchActivity: true, Quality: "exhigh", Appearance: "system", LiquidGlass: true, NpLight: true, GlowLevel: 0.5, GlassClear: 0.6, GlassBend: 0.3, GlassPanels: true, Volume: 0.8, Normalize: true, AppIcon: "dock-and-menubar", CacheMB: 2048, Captions: true}
+	return settings{BarSpin: true, GlobalKeys: true, NotchActivity: true, Quality: "exhigh", Appearance: "system", LiquidGlass: true, NpLight: true, GlowLevel: 0.5, GlassClear: 0.6, GlassBend: 0.3, GlassPanels: true, Volume: 0.8, Normalize: true, AppIcon: "dock-and-menubar", CacheMB: 2048, Captions: true}
 }
 
 func settingsPath() (string, error) {
