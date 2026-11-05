@@ -79,6 +79,7 @@ func (a *app) nowPlayingLayer(c *ui.Context, open, settled bool) {
 	a.npK = k
 	if !open && settled || a.pl.Current() == nil {
 		// Closed: nothing to paint or click.
+		a.backdropCache = backdropCache{}
 		layer.Top(0).Left(0).Right(0).Bottom(0).Invisible()
 		a.queueAt, a.wallState.track = -1, 0
 		a.npK = 0
