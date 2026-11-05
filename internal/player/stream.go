@@ -22,8 +22,8 @@ import (
 // need, so playback starts with the first ones. The song comes into a file
 // of the cache, which keeps it once it has all come in, and is read from
 // there: the system holds what of it was read lately, rather than the
-// app's memory, as much again as the song. Songs the cache would not keep
-// come into memory.
+// app's memory, as much again as the song. Uncached songs use temporary
+// files; only a failure to create or write one falls back to bounded memory.
 type download struct {
 	// A shared decoder has its own cancellable view of the same bytes.
 	// Cancelling it wakes only that reader, leaving playback's download alive.
@@ -70,6 +70,12 @@ func startDownload(url string, size int64, part *os.File, keep func(string, int6
 // turns out longer only outgrows.
 const maxPrealloc = 32 << 20
 
+// maxMemoryDownload bounds playback's fallback when no file can be written.
+// Failing the download is preferable to retaining an unbounded long episode.
+const maxMemoryDownload = 32 << 20
+
+var errDownloadMemory = errors.New("player: audio buffer is full; no writable temporary file")
+
 func prealloc(size int64) int64 { return min(size, maxPrealloc) }
 
 // downloaded returns a download that has all of b in already.
@@ -115,11 +121,14 @@ func (d *download) run(ctx context.Context, url string) {
 	for {
 		n, err := res.Body.Read(buf)
 		if n > 0 {
-			d.write(buf[:n])
+			if err := d.write(buf[:n]); err != nil {
+				finish(err)
+				return
+			}
 		}
 		if err == io.EOF {
 			// Whole if as long as promised: the cache's.
-			if d.part != "" && (d.size <= 0 || d.n == d.size) {
+			if d.keep != nil && d.part != "" && (d.size <= 0 || d.n == d.size) {
 				d.hand()
 			}
 			finish(nil)
@@ -134,26 +143,40 @@ func (d *download) run(ctx context.Context, url string) {
 
 // write adds b to what is in. Only run writes, so it reads the file and
 // what is in without the lock, which guards them from readers.
-func (d *download) write(b []byte) {
+func (d *download) write(b []byte) error {
 	if d.file != nil {
 		if _, err := d.file.Write(b); err != nil {
-			d.toMemory()
+			if err := d.toMemory(); err != nil {
+				return err
+			}
 		}
 	}
 	d.mu.Lock()
+	defer d.mu.Unlock()
 	if d.file == nil {
+		if d.n+int64(len(b)) > maxMemoryDownload {
+			return errDownloadMemory
+		}
+		if need := len(d.data) + len(b); need > cap(d.data) {
+			next := make([]byte, len(d.data), min(maxMemoryDownload, max(need, 2*cap(d.data))))
+			copy(next, d.data)
+			d.data = next
+		}
 		d.data = append(d.data, b...)
 	}
 	d.n += int64(len(b))
 	d.cond.Broadcast()
-	d.mu.Unlock()
+	return nil
 }
 
 // toMemory moves the song into memory from a file that takes no more, as
 // on a full disk: it plays on, but is not kept.
-func (d *download) toMemory() {
+func (d *download) toMemory() error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	if d.n > maxMemoryDownload {
+		return errDownloadMemory
+	}
 	d.data = make([]byte, d.n, max(prealloc(d.size), d.n))
 	got, _ := d.file.ReadAt(d.data, 0)
 	d.data = d.data[:got]
@@ -161,6 +184,7 @@ func (d *download) toMemory() {
 	d.file.Close()
 	os.Remove(d.part)
 	d.file, d.part = nil, ""
+	return nil
 }
 
 // hand gives the song, all in, to the cache, and reads it from where it

@@ -79,12 +79,13 @@ func (c *Cache) lookup(id int64, level string) (*download, *netease.Stream, bool
 	return nil, nil, false
 }
 
-// download fetches the song of the stream st into a file, to keep once it
-// has all come in; or into memory, if the cache would not keep it.
+// download fetches the song into a file. Songs the cache does not keep use
+// a temporary spool, removed when playback and its readers have finished.
 func (c *Cache) download(id int64, st *netease.Stream) *download {
 	part := c.part(st)
 	if part == nil {
-		return startDownload(st.URL, st.Size, nil, nil)
+		part, _ = os.CreateTemp("", "cloudy-stream-*.part")
+		return startDownload(st.URL, st.Size, part, nil)
 	}
 	return startDownload(st.URL, st.Size, part, func(path string, n int64) (string, bool) {
 		return c.keep(id, st, path, n)
