@@ -241,7 +241,12 @@ func (a *app) nowPlayingBody(c *ui.Context, tr *netease.Track, art *artwork, acc
 				ui.Row(c).Height(16).AlignItems(ui.Center).Children(func() {
 					ui.Text(c, clock(pl.Position())).FontSize(11).FontFeatures("tnum").TextColor(white.Alpha(0.5))
 					ui.Spacer(c)
-					qualityBadge(c, pl.Stream())
+					if tr.ProgramID != 0 {
+						// An episode's speed, where a song shows its quality.
+						a.speedButton(c)
+					} else {
+						qualityBadge(c, pl.Stream())
+					}
 					ui.Spacer(c)
 					status := "-" + clock(pl.Duration()-pl.Position())
 					if pl.Loading() {

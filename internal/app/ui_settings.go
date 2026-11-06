@@ -472,6 +472,11 @@ func (a *app) settingsBody(c *ui.Context) {
 						a.changed()
 					}
 				})
+				row("歌词翻译", "在歌词下方显示翻译；播放栏右侧的翻译按钮也能切换", func() {
+					if ui.Switch(c.Key("lyric-trans"), &s.LyricTrans).Label("歌词翻译").Changed() {
+						a.changed()
+					}
+				})
 				a.sleepRow(c, row)
 				row("音量均衡", "按网易云音乐测得的响度调整每首歌的音量，让歌曲听起来一样响", func() {
 					if ui.Switch(c.Key("normalize"), &s.Normalize).Label("音量均衡").Changed() {
@@ -479,14 +484,33 @@ func (a *app) settingsBody(c *ui.Context) {
 						a.changed()
 					}
 				})
+				a.outputRow(c, row)
 			})
 
 			group("下载歌曲", func() {
+				row("下载音质", "下载到本机的音质，可以和播放音质不同；无损与 Hi-Res 占用的空间大得多", func() {
+					labels := make([]string, len(downloadLevels))
+					chosen := downloadLevels[0].label
+					for i, d := range downloadLevels {
+						labels[i] = d.label
+						if d.level == s.DownloadQuality {
+							chosen = d.label
+						}
+					}
+					if a.paneSelect(c.Key("download-quality"), "下载音质", &chosen, labels) {
+						for _, d := range downloadLevels {
+							if d.label == chosen {
+								s.DownloadQuality = d.level
+							}
+						}
+						a.changed()
+					}
+				})
 				ui.Column(c).Padding(12, 16).Gap(10).Children(func() {
 					ui.Row(c).Gap(16).AlignItems(ui.Center).Children(func() {
 						ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(3).Children(func() {
 							ui.Text(c, "下载文件夹").FontSize(13.5).FontWeight(500)
-							ui.Text(c, "按设置里的音质保存；留空放在音乐文件夹下的「Cloudy Downloads」").FontSize(12).TextColor(ink.muted).LineHeight(1.4)
+							ui.Text(c, "留空放在音乐文件夹下的「Cloudy Downloads」；歌曲会写入歌名、歌手、封面和歌词").FontSize(12).TextColor(ink.muted).LineHeight(1.4)
 						})
 						if ui.Button(c.Key("download-open"), "打开").Clicked() {
 							a.openDownloadFolder()
@@ -512,9 +536,12 @@ func (a *app) settingsBody(c *ui.Context) {
 				})
 			})
 
-			if a.captionsShown() {
-				group("播客", func() { a.captionSettings(row, c) })
-			}
+			group("播客", func() {
+				a.podcastSpeedRow(c, row)
+				if a.captionsShown() {
+					a.captionSettings(row, c)
+				}
+			})
 
 		case settingsAbout:
 			group("软件信息", func() { a.aboutCard(c, ink) })

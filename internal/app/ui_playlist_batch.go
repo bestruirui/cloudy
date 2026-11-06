@@ -75,6 +75,7 @@ func (a *app) downloadAll(tracks []netease.Track) {
 		a.toast = fmt.Sprintf("已加入 %d 首下载", queued)
 	}
 	a.pumpDownload()
+	a.saveDownloadQueue()
 	a.redraw()
 }
 

@@ -10,7 +10,7 @@ import (
 )
 
 // downloadQueueView is the window over the queue: what is downloading,
-// what waits, and which of those the listener chose.
+// what waits, what failed, and which of those the listener chose.
 type downloadQueueView struct {
 	open     bool
 	selected map[int64]bool
@@ -22,7 +22,8 @@ type downloadQueueEntry struct {
 	active bool
 	got    int64
 	total  int64
-	pos    int // 1 for the first waiting song
+	pos    int    // 1 for the first waiting song
+	failed string // why it failed, for a song that did
 }
 
 func (a *app) downloadQueueCount() int {
@@ -47,6 +48,9 @@ func (a *app) downloadQueueEntries() []downloadQueueEntry {
 	}
 	for i, tr := range a.downloadQueue {
 		out = append(out, downloadQueueEntry{track: tr, pos: i + 1})
+	}
+	for _, f := range a.downloadFailed {
+		out = append(out, downloadQueueEntry{track: f.Track, failed: f.Reason})
 	}
 	return out
 }
@@ -86,8 +90,9 @@ func (a *app) selectAllDownloads(entries []downloadQueueEntry) {
 	a.redraw()
 }
 
-// cancelSelectedDownloads takes the chosen songs out of the queue, and
-// cancels the one downloading if it was chosen.
+// cancelSelectedDownloads takes the chosen songs out of the queue, cancels
+// the one downloading if it was chosen, and forgets the chosen ones that
+// failed.
 func (a *app) cancelSelectedDownloads() {
 	selected := a.queueView.selected
 	if len(selected) == 0 {
@@ -104,6 +109,15 @@ func (a *app) cancelSelectedDownloads() {
 		}
 	}
 	a.downloadQueue = keep
+	kept := a.downloadFailed[:0]
+	for _, f := range a.downloadFailed {
+		if selected[f.Track.ID] {
+			removed++
+		} else {
+			kept = append(kept, f)
+		}
+	}
+	a.downloadFailed = kept
 	if active {
 		removed++
 		a.cancelDownload()
@@ -112,36 +126,39 @@ func (a *app) cancelSelectedDownloads() {
 	if removed > 0 {
 		a.toast = fmt.Sprintf("已取消 %d 项下载", removed)
 	}
+	a.saveDownloadQueue()
 	a.redraw()
 }
 
 func (a *app) clearDownloadQueue() {
-	a.downloadQueue = nil
+	a.downloadQueue, a.downloadFailed = nil, nil
 	a.queueView.selected = map[int64]bool{}
 	if a.downloadJob != nil {
 		a.cancelDownload()
 	}
 	a.toast = "已清空下载队列"
+	a.saveDownloadQueue()
 	a.redraw()
 }
 
-// removeDownload takes one song out of the queue, or cancels it while it
-// is the one downloading.
+// removeDownload takes one song out of the queue, cancels it while it is
+// the one downloading, or forgets it once it failed.
 func (a *app) removeDownload(id int64) {
+	delete(a.queueView.selected, id)
 	if a.downloadJob != nil && a.downloadJob.track.ID == id {
-		delete(a.queueView.selected, id)
 		a.cancelDownload()
 		return
 	}
 	for i, tr := range a.downloadQueue {
 		if tr.ID == id {
 			a.downloadQueue = append(a.downloadQueue[:i], a.downloadQueue[i+1:]...)
-			delete(a.queueView.selected, id)
 			a.toast = "已从下载队列移除：" + tr.Name
+			a.saveDownloadQueue()
 			a.redraw()
 			return
 		}
 	}
+	a.dropFailedDownloads(id)
 }
 
 // downloadQueueDialog is the queue's own window.
@@ -153,13 +170,16 @@ func (a *app) downloadQueueDialog(c *ui.Context) {
 	entries := a.downloadQueueEntries()
 	pal, ink := a.pal, a.inkOn(false)
 	w, h := c.Size()
-	active, waiting := 0, len(a.downloadQueue)
+	active, waiting, failed := 0, len(a.downloadQueue), len(a.downloadFailed)
 	if a.downloadJob != nil {
 		active = 1
 	}
 	sub := fmt.Sprintf("正在下载 %d 首 · 等待 %d 首", active, waiting)
 	if active == 0 {
 		sub = fmt.Sprintf("等待下载 %d 首", waiting)
+	}
+	if failed > 0 {
+		sub += fmt.Sprintf(" · 失败 %d 首", failed)
 	}
 	if len(entries) == 0 {
 		sub = "当前没有下载任务"
@@ -174,19 +194,11 @@ func (a *app) downloadQueueDialog(c *ui.Context) {
 						ui.Text(c, "下载队列").FontSize(18).FontWeight(700)
 						ui.Text(c, sub).FontSize(12).TextColor(ink.muted)
 					})
+					if failed > 0 && pillButton(c.Key("dq-retry"), iconReload, "全部重试", ink.hover, ink.text).Clicked() {
+						a.retryDownloads()
+					}
 					if iconButton(c.Key("dq-close"), iconX, 16, ink.muted, "关闭").Clicked() {
 						q.open = false
-					}
-				})
-				ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-					chosen := a.downloadQueueChosen(entries)
-					ui.Textf(c, "已选 %d 项", chosen).FontSize(12.5).TextColor(ink.muted).Grow(1)
-					label := "全选"
-					if a.downloadQueueAll(entries) {
-						label = "取消全选"
-					}
-					if pillButton(c.Key("dq-all"), nil, label, ink.hover, ink.text).Clicked() {
-						a.selectAllDownloads(entries)
 					}
 				})
 				if len(entries) == 0 {
@@ -201,14 +213,25 @@ func (a *app) downloadQueueDialog(c *ui.Context) {
 				chosen := a.downloadQueueChosen(entries)
 				ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 					ui.Textf(c, "共 %d 项，已选 %d 项", len(entries), chosen).FontSize(12).TextColor(ink.muted).Grow(1)
-					cancel := pillButton(c.Key("dq-cancel"), iconX, "取消选中", pal.accent, pal.onAccent)
+					label := "全选"
+					if a.downloadQueueAll(entries) {
+						label = "取消全选"
+					}
+					all := pillButton(c.Key("dq-all"), nil, label, ink.hover, ink.text)
+					if len(entries) == 0 {
+						all.Disabled(true).Opacity(0.5)
+					}
+					if all.Clicked() {
+						a.selectAllDownloads(entries)
+					}
+					cancel := pillButton(c.Key("dq-cancel"), iconX, "取消所选下载", pal.accent, pal.onAccent)
 					if chosen == 0 {
 						cancel.Disabled(true).Opacity(0.5)
 					}
 					if cancel.Clicked() {
 						a.cancelSelectedDownloads()
 					}
-					clear := pillButton(c.Key("dq-clear"), iconTrash, "全部取消", pal.hover.Over(pal.bg), pal.text)
+					clear := pillButton(c.Key("dq-clear"), iconX, "全部取消", pal.hover.Over(pal.bg), pal.text)
 					if len(entries) == 0 {
 						clear.Disabled(true).Opacity(0.5)
 					}
@@ -240,14 +263,17 @@ func (a *app) downloadQueueRow(c *ui.Context, e downloadQueueEntry, i int) {
 			ui.Text(c, e.track.Name).FontSize(13).FontWeight(600).SingleLine()
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, e.track.ArtistNames()).FontSize(11.5).TextColor(ink.muted).SingleLine().Grow(1).Shrink(1).MinWidth(0)
-				status := fmt.Sprintf("等待中 · 第 %d 位", e.pos)
-				if e.active {
+				status, color := fmt.Sprintf("等待中 · 第 %d 位", e.pos), ink.faint
+				switch {
+				case e.failed != "":
+					status, color = "下载失败 · "+e.failed, pal.accent
+				case e.active:
 					status = "正在下载 · " + sizeText(e.got)
 					if e.total > 0 {
 						status += " / " + sizeText(e.total)
 					}
 				}
-				ui.Text(c, status).FontSize(10.5).TextColor(ink.faint).Shrink(0)
+				ui.Text(c, status).FontSize(10.5).TextColor(color).SingleLine().Shrink(1).MinWidth(0).MaxWidth(260)
 			})
 			if e.active {
 				share := float32(0)
@@ -262,9 +288,15 @@ func (a *app) downloadQueueRow(c *ui.Context, e downloadQueueEntry, i int) {
 				})
 			}
 		})
+		if e.failed != "" && iconButton(c.Key("retry"), iconReload, 13, ink.muted, "重新下载").Clicked() {
+			a.retryDownloads(e.track.ID)
+		}
 		label := "移出队列"
-		if e.active {
+		switch {
+		case e.active:
 			label = "取消下载"
+		case e.failed != "":
+			label = "不再下载"
 		}
 		if iconButton(c.Key("remove"), iconX, 13, ink.muted, label).Clicked() {
 			a.removeDownload(e.track.ID)

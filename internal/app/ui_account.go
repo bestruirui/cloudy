@@ -52,6 +52,7 @@ func (a *app) signedIn(prof *netease.Profile) {
 	// Playback picks up where it was left, once the session that lets
 	// the listener play their songs is back.
 	a.restoreSession()
+	a.restoreDownloadQueue()
 	a.mine, a.saved, a.recPlaylists, a.liked = nil, nil, nil, nil
 	a.myAlbums, a.myAlbumsErr, a.myAlbumsBusy = nil, "", false
 	a.likedPrograms, a.askedPrograms = nil, nil

@@ -339,8 +339,11 @@ func (a *app) startDownload(tr netease.Track) {
 		}
 	}
 	a.downloadQueue = append(a.downloadQueue, tr)
+	// Asked again, a song that failed is tried again, not listed twice.
+	a.dropFailedDownloads(tr.ID)
 	a.toast = "已加入下载：" + tr.Name
 	a.pumpDownload()
+	a.saveDownloadQueue()
 	a.redraw()
 }
 
@@ -357,10 +360,7 @@ func (a *app) pumpDownload() {
 		a.downloadQueue = nil
 		return
 	}
-	level := a.settings.Quality
-	if level == "" {
-		level = "exhigh"
-	}
+	level := a.downloadLevel()
 	job := &downloadJob{track: tr}
 	a.downloadJob = job
 	a.downloadGen++
@@ -376,6 +376,9 @@ func (a *app) pumpDownload() {
 				a.downloadJob.got, a.downloadJob.total = got, total
 			})
 		})
+		if err == nil {
+			tagDownload(item)
+		}
 		a.post(func() {
 			if gen != a.downloadGen {
 				return
@@ -388,7 +391,12 @@ func (a *app) pumpDownload() {
 // finishDownload lists what arrived, or says why it did not, and starts the
 // next one queued.
 func (a *app) finishDownload(item download.Item, err error) {
+	var tr netease.Track
+	if a.downloadJob != nil {
+		tr = a.downloadJob.track
+	}
 	a.downloadJob, a.downloadCancel = nil, nil
+	defer a.saveDownloadQueue()
 	switch {
 	case err == nil:
 		a.downloads = append([]download.Item{item}, a.downloads...)
@@ -403,8 +411,10 @@ func (a *app) finishDownload(item download.Item, err error) {
 		a.toast = "已取消下载"
 	case errors.Is(err, netease.ErrUnavailable):
 		a.toast = "这首歌暂时不能下载"
+		a.failDownload(tr, "没有下载权限")
 	default:
 		a.toast = "下载失败：" + err.Error()
+		a.failDownload(tr, err.Error())
 	}
 	a.pumpDownload()
 	a.redraw()
@@ -422,6 +432,7 @@ func (a *app) cancelDownload() {
 	a.downloadJob, a.downloadCancel = nil, nil
 	a.toast = "已取消下载"
 	a.pumpDownload()
+	a.saveDownloadQueue()
 	a.redraw()
 }
 

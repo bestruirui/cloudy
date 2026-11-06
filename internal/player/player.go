@@ -44,6 +44,12 @@ type Player struct {
 	// going on; SongStopped, if set, hears that it did.
 	StopAfterSong bool
 	SongStopped   func()
+	// PodcastSpeed is how fast episodes play, their pitch kept: 0 or 1 as
+	// recorded. Songs play as they are.
+	PodcastSpeed float64
+
+	stretcher *stretch // between the stream and what plays, for a speed
+	curSpeed  float64  // the speed the track playing plays at
 
 	queue   []netease.Track
 	order   []int // the queue's indices in play order: shuffled or not
@@ -557,7 +563,7 @@ func (p *Player) Seek(t time.Duration) {
 	// Paused, it jumps at once; but a seek on its way paused it only for
 	// the jump, and this one takes its place, playing on from there.
 	if !out.Playing() && !p.seeking {
-		out.Seek(t)
+		out.Seek(p.heard(t))
 		p.sync()
 		return
 	}
@@ -571,7 +577,7 @@ func (p *Player) Seek(t time.Duration) {
 				return
 			}
 			p.seeking = false
-			out.Seek(t)
+			out.Seek(p.heard(t))
 			if p.playing || !p.fade.silent() {
 				out.Play()
 			}
@@ -620,7 +626,7 @@ func (p *Player) Position() time.Duration {
 	case p.seeking:
 		return p.seekTo
 	}
-	return p.out.Position()
+	return time.Duration(float64(p.out.Position()) * p.speed())
 }
 
 func (p *Player) Duration() time.Duration {
@@ -665,7 +671,7 @@ func (p *Player) stop() {
 			out.Close()
 		})
 	}
-	p.out, p.stream, p.info = nil, nil, nil
+	p.out, p.stream, p.info, p.stretcher, p.curSpeed = nil, nil, nil, nil, 1
 	p.loading = false
 	p.seeking = false
 	p.fade.attach(nil, 1)
@@ -779,7 +785,9 @@ func (p *Player) loadAttempt(at, skipped int, play bool, from time.Duration, dir
 			checked := &checkedStream{stream: s}
 			p.stream, p.info = checked, info
 			p.gain = normGain(info)
-			p.out = audio.NewPlayer(checked)
+			p.stretcher = newStretch(checked, p.speedOf(&t))
+			p.curSpeed = p.stretcher.speed
+			p.out = audio.NewPlayer(p.stretcher)
 			// From its middle, as a session picked up again, it fades in.
 			level := 1.0
 			if p.pending > 0 {
@@ -795,7 +803,7 @@ func (p *Player) loadAttempt(at, skipped int, play bool, from time.Duration, dir
 				})
 			})
 			if p.pending > 0 {
-				p.out.Seek(p.pending)
+				p.out.Seek(p.heard(p.pending))
 				p.pending = 0
 			}
 			if p.playing {

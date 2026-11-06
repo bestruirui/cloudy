@@ -3,6 +3,7 @@ package app
 import (
 	"github.com/egoist/mygo/ui"
 
+	"netease-music-mygo/internal/download"
 	"netease-music-mygo/internal/netease"
 	"netease-music-mygo/internal/player"
 )
@@ -17,6 +18,7 @@ func newTestApp() *app {
 	a.art = newArtCache(func(func()) {})
 	a.pl = player.New(func(func()) {})
 	a.pl.SetVolume(0.5)
+	tagDownload = func(download.Item) {}
 	return a
 }
 

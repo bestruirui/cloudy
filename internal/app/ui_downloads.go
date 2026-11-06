@@ -70,7 +70,8 @@ func (a *app) downloadsHeader(c *ui.Context) {
 	head.Children(func() {
 		a.headCover(c, a.downloadArtURL())
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(8).Children(func() {
-			ui.Text(c, "本地下载").FontSize(12).FontWeight(600).TextColor(p.accent)
+			// What the page is, as 歌单 and 专辑 head theirs.
+			ui.Text(c, "本地").FontSize(12).FontWeight(600).TextColor(p.accent)
 			ui.Text(c, "下载歌曲").FontSize(30).FontWeight(800).LetterSpacing(-0.6).MaxLines(1)
 			ui.Text(c, meta).FontSize(13).TextColor(p.muted)
 			if a.downloadBatchActive() {
@@ -88,14 +89,7 @@ func (a *app) downloadsHeader(c *ui.Context) {
 					if pillButton(c.Key("open"), iconFolder, "打开文件夹", p.hover.Over(p.bg), p.text).Clicked() {
 						a.openDownloadFolder()
 					}
-					if pillButton(c.Key("change"), iconFolder, "更换文件夹", p.hover.Over(p.bg), p.text).Clicked() {
-						a.pickDownloadFolder()
-					}
-					if pillButton(c.Key("rescan"), iconReload, "重新扫描", p.hover.Over(p.bg), p.text).Clicked() {
-						a.loadDownloads(true)
-						a.toast = "正在重新读取下载歌曲…"
-					}
-					count := a.downloadQueueCount()
+					count := a.downloadQueueCount() + len(a.downloadFailed)
 					queueLabel := "下载队列"
 					if count > 0 {
 						queueLabel = fmt.Sprintf("下载队列 %d", count)
@@ -107,6 +101,17 @@ func (a *app) downloadsHeader(c *ui.Context) {
 						if pillButton(c.Key("batch-delete"), iconTrash, "批量删除", p.hover.Over(p.bg), p.text).Clicked() {
 							a.startDownloadBatch()
 						}
+					}
+					// What is done seldom: as a playlist keeps its own.
+					more := iconButton(c.Key("more"), iconMore, 18, p.muted, "更多").Size(36, 36)
+					if more.Clicked() {
+						a.menuBelow(more, false, [][]menuAction{{
+							{label: "更换文件夹…", icon: iconFolderSwap, do: a.pickDownloadFolder},
+							{label: "重新扫描", icon: iconReload, do: func() {
+								a.loadDownloads(true)
+								a.toast = "已重新读取下载歌曲"
+							}},
+						}}, nil)
 					}
 				})
 			}

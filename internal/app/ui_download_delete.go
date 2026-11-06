@@ -63,6 +63,7 @@ func (a *app) deleteDownload() {
 		d.open = false
 		return
 	}
+	removeDownloadFiles(d.path)
 	if err := os.Remove(d.path); err != nil && !os.IsNotExist(err) {
 		a.toast = "无法删除本地文件，请先切歌后再试"
 		a.redraw()
@@ -96,6 +97,7 @@ func (a *app) deleteDownloadItems(items []download.Item) {
 			failed++
 			continue
 		}
+		removeDownloadFiles(it.Path)
 		if err := os.Remove(it.Path); err != nil && !os.IsNotExist(err) {
 			failed++
 			continue

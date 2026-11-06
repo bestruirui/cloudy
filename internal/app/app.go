@@ -124,6 +124,7 @@ type app struct {
 	queueList   ui.ListState
 	queueAt     int // the row of the queue pane last scrolled to, -1 while it is hidden
 	loginKnown  *bool // whether the app starts at login, once asked
+	outputList  outputList // the audio outputs, as last listed
 	comments    commentState
 	tabCount    rollState // the count on the comments' tab, as it rolls
 
@@ -214,6 +215,8 @@ type app struct {
 	downloadJob       *downloadJob
 	downloadCancel    context.CancelFunc
 	downloadGen       int
+	downloadFailed    []failedDownload // songs that failed to download, to try again
+	downloadsRestored bool             // the queue left at the last quit is picked up
 	downloadArtDir    string // where covers found in the folder are kept
 	downloadIndex     string // where the index of downloaded songs is kept
 	downloadBox       ui.Handle
@@ -291,6 +294,8 @@ func Run() error {
 	mygo.App.WhenReady(func() {
 		a.settings = loadSettings()
 		setFrameRate(a.settings.FrameRate)
+		a.applyOutput()
+		a.pl.PodcastSpeed = a.settings.PodcastSpeed
 		a.settings.applyAppearance()
 		a.loadFont()
 		a.npPane = a.lyricsPaneChosen()
