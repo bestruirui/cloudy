@@ -65,8 +65,11 @@ type settings struct {
 	// BarSpin turns the cover in the bar as a record while music plays. Off
 	// is kept too.
 	BarSpin bool `json:"barSpin"`
-	// GlobalKeys has the keys of globalKeys work from any app.
+	// GlobalKeys has the shortcuts work from any app.
 	GlobalKeys bool `json:"globalKeys"`
+	// Shortcuts are the listener's own global shortcuts, by action id; an
+	// action absent here uses its defaults.
+	Shortcuts map[string]string `json:"shortcuts,omitempty"`
 	// LyricScale is the size of lyrics, of their size as designed: 0 for 1.
 	LyricScale float64 `json:"lyricScale,omitempty"`
 	// LyricShift is how many milliseconds a song's lyrics run early, by its
@@ -117,6 +120,9 @@ type settings struct {
 	// CacheMB is how many megabytes the songs kept on disk may take; 0
 	// keeps none.
 	CacheMB int `json:"cacheMB"`
+	// DownloadFolder is where the songs they download are kept; empty for
+	// the Cloudy Downloads folder among their music.
+	DownloadFolder string `json:"downloadFolder,omitempty"`
 	// SearchHistory keeps submitted keywords, most recent first.
 	SearchHistory []string `json:"searchHistory,omitempty"`
 

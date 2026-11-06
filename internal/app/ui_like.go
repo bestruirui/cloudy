@@ -41,6 +41,9 @@ func (a *app) loadLiked(uid int64) {
 // and then with NetEase, which may refuse: the heart goes back then. Signed
 // out, it asks the listener to sign in.
 func (a *app) toggleLike(tr *netease.Track) {
+	if tr.LocalPath != "" {
+		return
+	}
 	if a.profile == nil {
 		a.showMain()
 		a.openLogin()
@@ -88,7 +91,7 @@ func (a *app) isLiked(tr *netease.Track) bool {
 // keyboard (⌘D), which shows no heart: a toast says which it did.
 func (a *app) likeCurrent() {
 	tr := a.pl.Current()
-	if tr == nil {
+	if tr == nil || tr.LocalPath != "" {
 		return
 	}
 	a.toggleLike(tr)
@@ -177,6 +180,10 @@ func (a *app) programLikesAnswered(uid int64, asked []int64, liked map[int64]boo
 // pops it in on a spring while a ring swells around it and confetti flies
 // out; unliking lets it give a little.
 func (a *app) likeButton(c *ui.Context, tr *netease.Track, size float32, color ui.Color) ui.Element {
+	// A file on disk has no heart at NetEase.
+	if tr.LocalPath != "" {
+		return ui.Box(c).Size(size+16, size+16)
+	}
 	if tr.ProgramID != 0 {
 		a.askProgramLikes([]int64{tr.ProgramID})
 	}

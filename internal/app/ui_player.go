@@ -285,7 +285,9 @@ func (a *app) scrollVolume(ev ui.InputEvent) bool {
 	if ev.Kind != ui.InputScroll {
 		return false
 	}
-	a.volume = min(1, max(0, a.volume-float64(ev.DY)/400))
+	// One wheel notch is about 100 DIPs, and should be one percent; a
+	// touchpad's finer deltas stay fine.
+	a.volume = min(1, max(0, a.volume-float64(ev.DY)/10000))
 	a.pl.SetVolume(a.volume)
 	return true
 }
@@ -309,13 +311,17 @@ func (a *app) muteButton(c *ui.Context, color ui.Color) {
 		icon = iconMute
 	}
 	if iconButton(c.Key("mute"), icon, 16, color, "静音").Clicked() {
-		if a.volume > 0 {
-			a.mutedFrom, a.volume = a.volume, 0
-		} else {
-			a.volume = max(a.mutedFrom, 0.5)
-		}
-		a.pl.SetVolume(a.volume)
+		a.toggleMute()
 	}
+}
+
+func (a *app) toggleMute() {
+	if a.volume > 0 {
+		a.mutedFrom, a.volume = a.volume, 0
+	} else {
+		a.volume = max(a.mutedFrom, 0.5)
+	}
+	a.pl.SetVolume(a.volume)
 }
 
 // volumeSlider is a slim slider with the speaker before it, which mutes.
@@ -429,7 +435,7 @@ func (a *app) playerBar(c *ui.Context) {
 	// The controls keep the middle, between sides that share what is left:
 	// narrower, the middle gives up to 140 DIPs, and what plays keeps room
 	// for its cover, some of its title and its heart.
-	const controls = 5*32 + 4*4 // the floating windows, lyrics, queue and the speaker
+	const controls = 4*32 + 3*4 // the floating windows, the speaker and the details
 	bar := ui.Row(c).Absolute().Gap(20).AlignItems(ui.Center)
 	a.barBox = bar.LayoutBounds()
 	if liquid {
@@ -518,7 +524,7 @@ func (a *app) playerBar(c *ui.Context) {
 			})
 		})
 
-		// Lyrics and volume.
+		// The floating windows, the volume, and the song's details.
 		ui.Row(c).Grow(1).Basis(0).MinWidth(controls).Justify(ui.End).AlignItems(ui.Center).Gap(4).Children(func() {
 			desk := muted
 			if a.settings.DeskLyrics {
@@ -530,21 +536,10 @@ func (a *app) playerBar(c *ui.Context) {
 			if iconButton(c.Key("mini"), iconMiniWin, 16, muted, "迷你窗口").Clicked() {
 				a.showMini()
 			}
-			lyr := muted
-			if a.nowPlaying {
-				lyr = p.accent
-			}
-			label := "歌词"
-			if tr != nil && tr.ProgramID != 0 {
-				label = "节目简介"
-			}
-			if iconButton(c.Key("lyrics"), iconLyrics, 16, lyr, label).Clicked() && tr != nil {
-				a.nowPlaying, a.npPane = true, a.lyricsPaneChosen()
-			}
-			if iconButton(c.Key("queue"), iconQueue, 16, muted, "播放队列").Clicked() && tr != nil {
-				a.nowPlaying, a.npPane = true, paneQueue
-			}
 			a.volumeButton(c, p.text.Alpha(0.75))
+			if tr != nil {
+				a.songMenuLabeled(c.Key("details"), tr, 16, muted, "歌曲详情")
+			}
 		})
 	})
 }

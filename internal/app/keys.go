@@ -4,60 +4,86 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
 
-// globalKeys are the keys that work from any app: the first of each that no
-// other app holds, for no one key is free on every computer. Ctrl+Alt+Space,
-// for one, is how Claude's desktop app is called up.
-var globalKeys = []struct {
-	keys []string
-	do   func(a *app)
-}{
-	{[]string{"Ctrl+Alt+P", "Ctrl+Alt+Space", "Ctrl+Alt+Home"}, func(a *app) { a.pl.TogglePlay() }},
-	{[]string{"Ctrl+Alt+Right"}, func(a *app) { a.pl.Next() }},
-	{[]string{"Ctrl+Alt+Left"}, func(a *app) { a.pl.Prev() }},
-	{[]string{"Ctrl+Alt+Up"}, func(a *app) { a.nudgeVolume(0.05) }},
-	{[]string{"Ctrl+Alt+Down"}, func(a *app) { a.nudgeVolume(-0.05) }},
-	{[]string{"Ctrl+Alt+V", "Ctrl+Alt+L"}, func(a *app) { a.likeCurrent() }},
+type shortcutAction struct {
+	id, label string
+	keys      []string
+	do        func(a *app)
 }
+
+// shortcutActions are the keys that work from any app. The first key of
+// each that no other app holds is used, for no one key is free on every
+// computer. A custom key in the settings replaces the defaults.
+var shortcutActions = []shortcutAction{
+	{"play", "播放/暂停", []string{"Ctrl+Alt+P", "Ctrl+Alt+Space", "Ctrl+Alt+Home"}, func(a *app) { a.pl.TogglePlay() }},
+	{"next", "下一首", []string{"Ctrl+Alt+Right"}, func(a *app) { a.pl.Next() }},
+	{"prev", "上一首", []string{"Ctrl+Alt+Left"}, func(a *app) { a.pl.Prev() }},
+	{"volume-up", "音量 +", []string{"Ctrl+Alt+Up"}, func(a *app) { a.nudgeVolume(0.05) }},
+	{"volume-down", "音量 -", []string{"Ctrl+Alt+Down"}, func(a *app) { a.nudgeVolume(-0.05) }},
+	{"mute", "静音/取消静音", []string{"Ctrl+Alt+Shift+M"}, func(a *app) { a.toggleMute() }},
+	{"like", "喜欢当前歌曲", []string{"Ctrl+Alt+V", "Ctrl+Alt+L"}, func(a *app) { a.likeCurrent() }},
+	{"show", "显示/隐藏窗口", []string{"Ctrl+Alt+M"}, func(a *app) { a.toggleWindow() }},
+}
+
+// These are the system's shortcut registry; tests replace them.
+var (
+	registerShortcut   = mygo.GlobalShortcut.Register
+	unregisterShortcut = mygo.GlobalShortcut.Unregister
+)
 
 // applyGlobalKeys registers the keys that work from any app, or lets them go.
 // Other apps may hold all of those of something, which keysTaken counts.
 func (a *app) applyGlobalKeys() {
-	a.keysTaken, a.playKey, a.likeKey = 0, "", ""
-	for i, k := range globalKeys {
-		for _, keys := range k.keys {
-			mygo.GlobalShortcut.Unregister(keys)
-		}
-		if !a.settings.GlobalKeys {
-			continue
+	for _, key := range a.registeredKeys {
+		unregisterShortcut(key)
+	}
+	a.registeredKeys, a.keysTaken = nil, 0
+	a.shortcutKeys = map[string]string{}
+	if !a.settings.GlobalKeys {
+		return
+	}
+	for _, k := range shortcutActions {
+		keys := k.keys
+		if custom := strings.TrimSpace(a.settings.Shortcuts[k.id]); custom != "" {
+			keys = []string{custom}
 		}
 		do, taken := k.do, true
-		for _, keys := range k.keys {
-			err := mygo.GlobalShortcut.Register(keys, func() {
+		for _, key := range keys {
+			err := registerShortcut(key, func() {
 				do(a)
 				a.redraw()
 			})
 			if err == nil {
 				taken = false
-				switch i {
-				case 0:
-					a.playKey = keys
-				case len(globalKeys) - 1:
-					a.likeKey = keys
-				}
+				a.registeredKeys = append(a.registeredKeys, key)
+				a.shortcutKeys[k.id] = key
 				break
 			}
-			log.Printf("shortcut %s: %v", keys, err)
+			log.Printf("shortcut %s: %v", key, err)
 		}
 		if taken {
 			a.keysTaken++
 		}
 	}
+}
+
+// toggleWindow shows the window when it is hidden, and hides it when it is
+// showing, for the global shortcut.
+func (a *app) toggleWindow() {
+	if a.win == nil {
+		return
+	}
+	if a.win.IsVisible() {
+		a.win.Hide()
+		return
+	}
+	a.showMain()
 }
 
 func (a *app) nudgeVolume(by float64) {

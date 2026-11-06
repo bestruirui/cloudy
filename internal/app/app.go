@@ -1,12 +1,14 @@
 package app
 
 import (
+	"context"
 	"runtime"
 	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
+	"netease-music-mygo/internal/download"
 	"netease-music-mygo/internal/netease"
 	"netease-music-mygo/internal/player"
 )
@@ -25,6 +27,7 @@ const (
 	pageUser
 	pagePodcast
 	pagePodcasts
+	pageDownloads
 )
 
 type route struct {
@@ -92,6 +95,7 @@ type app struct {
 	podcasts   map[int64]*podcastData
 	podcastTab *podcastTab // the podcasts tab's lists
 	trackList  ui.ListState
+	batch      batchSelection
 	// Where the page and the sidebar are scrolled, kept while Now Playing
 	// covers them, unbuilt.
 	pageScroll ui.ScrollState
@@ -139,51 +143,52 @@ type app struct {
 	underTop, underBottom bool
 	barScrub              scrubState
 	npScrub               scrubState
-	glowColor             ui.Color         // the color of Now Playing's glow, from the cover's
-	menu                  paneMenu         // the menu open, if one is (ui_pane.go)
-	npPill                ui.Rect          // where the tab chosen is, in the row of tabs
-	barBox                ui.Rect          // where the player bar is, which Now Playing grows from
-	barSpot, npSpot       flightSpot       // what stays as it grows, in the bar and in the view
-	npK                   float32          // how far Now Playing has opened, from 0 to 1
-	npCoverScale          float32          // how its cover stands, which the flight lands at
-	motion                int              // how much the app moves, in this frame
-	playFlies             func(ui.Element) // what hides the play button being built as it flies
-	pageDir               int              // the way the page last changed: 1 in, -1 back, 0 across
-	feedback              feedbackState    // the message being written, in the settings
-	roam                  *roamer          // what deals the songs of styles
-	deskWin, miniWin      *mygo.Window     // the windows that float, once opened
-	splashed              bool             // the record has come in, as the app started
-	splashAt              time.Time        // when it started to
-	keysTaken             int              // how many global keys other apps hold
-	playKey               string           // the global key that plays and pauses
-	likeKey               string           // and the one that likes
-	miniScrub             scrubState       // the progress of the mini window
-	morph                 floatMorph       // the player on its way to or from it
-	sleepTimer            *time.Timer      // pauses the music once the time set is up
-	sleepAt               time.Time        // when
-	sleepMinutes          int              // what the listener chose
-	spin                  discState        // how far the bar's cover has turned
-	npPointer             bool             // the pointer is over Now Playing
-	headAt                ui.Rect          // where the cover of the page's header is
-	cameFrom              cardOrigin       // the card this page was opened from
-	restoreY              float32          // how far to scroll the page coming back
-	fontsAsked            bool             // the fonts that come as files were asked for
-	plView                plView           // how the playlist open is searched and sorted
-	headGone              float32          // how far the page's header has scrolled away
-	rowsRoute             route            // the page whose list last came in
-	rowsAt                time.Time        // when it started to
-	sideColor             ui.Color         // what the sidebar shows, as it eases
-	sideEdge              ui.Color         // what its list fades to, under its edges
-	flight                coverFlight      // a cover on its way to the page it opens
-	heldRoute             route            // the page opened from a card
-	heldURL               string           // and the cover the card gave it
-	playSpot              ui.Rect          // where the play button last built is
-	backdropCache         backdropCache    // the backdrop of Now Playing, as last painted
-	npArt                 *artwork         // the cover whose colors Now Playing shows
-	npCoverState          coverState       // the cover of Now Playing, as it is tilted and flicked
-	wallState             wallState        // the wall of the queue's covers, as it is dragged
-	quiet                 quietState       // the quiet parts of the song playing, for its hot comments
-	captions              captionState     // the episode playing's captions, and the model that writes them
+	glowColor             ui.Color          // the color of Now Playing's glow, from the cover's
+	menu                  paneMenu          // the menu open, if one is (ui_pane.go)
+	npPill                ui.Rect           // where the tab chosen is, in the row of tabs
+	barBox                ui.Rect           // where the player bar is, which Now Playing grows from
+	barSpot, npSpot       flightSpot        // what stays as it grows, in the bar and in the view
+	npK                   float32           // how far Now Playing has opened, from 0 to 1
+	npCoverScale          float32           // how its cover stands, which the flight lands at
+	motion                int               // how much the app moves, in this frame
+	playFlies             func(ui.Element)  // what hides the play button being built as it flies
+	pageDir               int               // the way the page last changed: 1 in, -1 back, 0 across
+	feedback              feedbackState     // the message being written, in the settings
+	roam                  *roamer           // what deals the songs of styles
+	deskWin, miniWin      *mygo.Window      // the windows that float, once opened
+	splashed              bool              // the record has come in, as the app started
+	splashAt              time.Time         // when it started to
+	keysTaken             int               // how many global keys other apps hold
+	miniScrub             scrubState        // the progress of the mini window
+	morph                 floatMorph        // the player on its way to or from it
+	sleepTimer            *time.Timer       // pauses the music once the time set is up
+	sleepAt               time.Time         // when
+	sleepMinutes          int               // what the listener chose
+	shortcutKeys          map[string]string // the global key registered for each action
+	registeredKeys        []string          // the global keys held, to let them go
+	shortcutSetup         shortcutEditor
+	spin                  discState     // how far the bar's cover has turned
+	npPointer             bool          // the pointer is over Now Playing
+	headAt                ui.Rect       // where the cover of the page's header is
+	cameFrom              cardOrigin    // the card this page was opened from
+	restoreY              float32       // how far to scroll the page coming back
+	fontsAsked            bool          // the fonts that come as files were asked for
+	plView                plView        // how the playlist open is searched and sorted
+	headGone              float32       // how far the page's header has scrolled away
+	rowsRoute             route         // the page whose list last came in
+	rowsAt                time.Time     // when it started to
+	sideColor             ui.Color      // what the sidebar shows, as it eases
+	sideEdge              ui.Color      // what its list fades to, under its edges
+	flight                coverFlight   // a cover on its way to the page it opens
+	heldRoute             route         // the page opened from a card
+	heldURL               string        // and the cover the card gave it
+	playSpot              ui.Rect       // where the play button last built is
+	backdropCache         backdropCache // the backdrop of Now Playing, as last painted
+	npArt                 *artwork      // the cover whose colors Now Playing shows
+	npCoverState          coverState    // the cover of Now Playing, as it is tilted and flicked
+	wallState             wallState     // the wall of the queue's covers, as it is dragged
+	quiet                 quietState    // the quiet parts of the song playing, for its hot comments
+	captions              captionState  // the episode playing's captions, and the model that writes them
 	sig                   playerSig
 	quitting              bool
 
@@ -198,6 +203,22 @@ type app struct {
 	updates        bool            // the update plugin is used (useUpdater)
 	fontList       []uiFont        // the fonts on offer here (fontChoices)
 	fontsLoaded    map[string]bool // the fonts of files registered, by id (loadFont)
+
+	// The songs saved to disk, the ones on their way there, and where both
+	// are kept.
+	downloads         []download.Item
+	downloadsLoaded   bool
+	downloadsErr      string
+	downloadQueue     []netease.Track
+	downloadJob       *downloadJob
+	downloadCancel    context.CancelFunc
+	downloadGen       int
+	downloadArtDir    string // where covers found in the folder are kept
+	downloadIndex     string // where the index of downloaded songs is kept
+	downloadBox       ui.Handle
+	downloadPathDraft string // the folder path being typed in the settings
+	queueView         downloadQueueView
+	downloadDelete    downloadDelete
 
 	restored     bool   // playback picked up where it was left
 	savedSession string // the session as last kept

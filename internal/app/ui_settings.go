@@ -33,6 +33,7 @@ var settingsCategories = [...]struct {
 // the app to show through: a window of its own would have nothing under it.
 func (a *app) openSettings() {
 	a.measureCache()
+	a.downloadPathDraft = a.downloadFolder()
 	a.settingsOpen = true
 	a.showMain()
 	a.redraw()
@@ -139,21 +140,22 @@ func (a *app) settingsBody(c *ui.Context) {
 			a.accountCard(c, card, row, ink)
 
 			group("快捷键", func() {
-				keys := "在其他软件里也能用：Ctrl+Alt+←→ 切歌，Ctrl+Alt+↑↓ 调音量"
-				if a.playKey != "" {
-					keys = "在其他软件里也能用：" + a.playKey + " 播放暂停，Ctrl+Alt+←→ 切歌，Ctrl+Alt+↑↓ 调音量"
-				}
-				if a.likeKey != "" {
-					keys += "，" + a.likeKey + " 喜欢"
-				}
-				if a.keysTaken > 0 {
-					keys += fmt.Sprintf("；有 %d 组被其他软件占用", a.keysTaken)
+				keys := "在其他软件里也能用"
+				if !s.GlobalKeys {
+					keys = "已关闭"
+				} else if a.keysTaken > 0 {
+					keys = fmt.Sprintf("有 %d 组被其他软件占用", a.keysTaken)
 				}
 				row("全局快捷键", keys, func() {
-					if ui.Switch(c.Key("global-keys"), &s.GlobalKeys).Label("全局快捷键").Changed() {
-						a.applyGlobalKeys()
-						a.changed()
-					}
+					ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+						if ui.Button(c.Key("shortcut-custom"), "自定义").Clicked() {
+							a.openShortcutEditor()
+						}
+						if ui.Switch(c.Key("global-keys"), &s.GlobalKeys).Label("全局快捷键").Changed() {
+							a.applyGlobalKeys()
+							a.changed()
+						}
+					})
 				})
 			})
 
@@ -446,6 +448,37 @@ func (a *app) settingsBody(c *ui.Context) {
 						a.pl.SetVolume(a.volume)
 						a.changed()
 					}
+				})
+			})
+
+			group("下载歌曲", func() {
+				ui.Column(c).Padding(12, 16).Gap(10).Children(func() {
+					ui.Row(c).Gap(16).AlignItems(ui.Center).Children(func() {
+						ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(3).Children(func() {
+							ui.Text(c, "下载文件夹").FontSize(13.5).FontWeight(500)
+							ui.Text(c, "按设置里的音质保存；留空放在音乐文件夹下的「Cloudy Downloads」").FontSize(12).TextColor(ink.muted).LineHeight(1.4)
+						})
+						if ui.Button(c.Key("download-open"), "打开").Clicked() {
+							a.openDownloadFolder()
+						}
+					})
+					ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+						field := ui.Row(c).Grow(1).Height(34).PaddingX(10).Radius(8).
+							Background(ink.press).Border(1, ink.line)
+						field.Children(func() {
+							path := ui.TextInputBase(c.Key("download-path"), &a.downloadPathDraft).Bind(&a.downloadBox).Grow(1).MinWidth(0).
+								FontSize(12.5).Label("下载文件夹路径").Placeholder(`例如 D:\Music\Cloudy\Downloads`)
+							if path.Submitted() {
+								a.setDownloadFolder(a.downloadPathDraft)
+							}
+						})
+						if ui.Button(c.Key("download-apply"), "应用").Clicked() {
+							a.setDownloadFolder(a.downloadPathDraft)
+						}
+						if ui.Button(c.Key("download-browse"), "浏览…").Clicked() {
+							a.pickDownloadFolder()
+						}
+					})
 				})
 			})
 

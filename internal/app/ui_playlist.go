@@ -99,6 +99,8 @@ func (a *app) pageArt() string {
 			}
 			return d.profile.PicURL
 		}
+	case pageDownloads:
+		return a.downloadArtURL()
 	default:
 		return ""
 	}
@@ -175,10 +177,6 @@ func (a *app) pageAura(page ui.Element, url string) {
 // and fans them out under the pointer, as the daily card's. A narrow window
 // has no room for it, nor a list of a single album.
 func (a *app) coverStack(c *ui.Context, pl *netease.Playlist) {
-	w, _ := c.Size()
-	if w-sidebarWidth < 860 {
-		return
-	}
 	var urls []string
 	for i := range pl.Tracks {
 		if url := pl.Tracks[i].Album.PicURL; url != "" && !slices.Contains(urls, url) {
@@ -187,10 +185,20 @@ func (a *app) coverStack(c *ui.Context, pl *netease.Playlist) {
 			}
 		}
 	}
+	a.coverStackURLs(c, urls)
+}
+
+// coverStackURLs piles the covers of a page's first songs, where there is
+// room for three.
+func (a *app) coverStackURLs(c *ui.Context, urls []string) {
+	w, _ := c.Size()
+	if w-sidebarWidth < 860 {
+		return
+	}
 	if len(urls) < 3 {
 		return
 	}
-	stack := ui.Box(c.Key("stack")).Size(204, 164).Shrink(0).AlignSelf(ui.Center).Label("歌单中的封面")
+	stack := ui.Box(c.Key("stack")).Size(204, 164).Shrink(0).AlignSelf(ui.Center).Label("页面中的封面")
 	fanned := stack.Hovered()
 	spring := ui.Animation{Spring: ui.SpringOptions{Duration: 460 * time.Millisecond, Bounce: 0.18}}
 	stack.Children(func() {
@@ -288,6 +296,9 @@ func (a *app) listTools(c *ui.Context, tracks, shown []netease.Track) {
 func (a *app) playlistTop(c *ui.Context) {
 	pl := a.playlists[a.route.id]
 	if a.route.page != pagePlaylist || pl == nil {
+		return
+	}
+	if a.batchActive(pl.ID) {
 		return
 	}
 	p := a.pal

@@ -67,7 +67,9 @@ type paneMenu struct {
 	groups   [][]menuAction
 	head     func(c *ui.Context, ink paneInk)
 	sub      *menuAction // what shows in place of groups, if anything
-	closedAt time.Time   // when a press outside closed it
+	anchor   ui.Handle   // the control it opens under, for a window that changes size
+	anchored bool
+	closedAt time.Time // when a press outside closed it
 }
 
 // menuWidth is how wide a menu is; the heights are what its rows take, to
@@ -116,6 +118,8 @@ func (a *app) menuBelow(b ui.Element, onDark bool, groups [][]menuAction, head f
 	}
 	r := b.Bounds()
 	a.openMenu(r.X, r.Y+r.H+8, r.Y-8, onDark, groups, head)
+	b.Bind(&a.menu.anchor)
+	a.menu.anchored = true
 }
 
 // contextMenu opens a menu where the secondary button presses el.
@@ -135,6 +139,17 @@ func (a *app) menuOverlay(c *ui.Context) {
 	m := &a.menu
 	if !m.open {
 		return
+	}
+	if m.anchored {
+		r := m.anchor.Bounds(c)
+		if e := c.Resolve(m.anchor); e.Valid() {
+			r = e.LayoutBounds()
+		}
+		if r.W <= 0 || r.H <= 0 {
+			m.open, m.sub = false, nil
+			return
+		}
+		m.x, m.y, m.up = r.X, r.Y+r.H+8, r.Y-8
 	}
 	w, h := c.Size()
 	ink := a.inkOn(m.onDark)

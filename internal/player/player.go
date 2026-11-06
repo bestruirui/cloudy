@@ -3,9 +3,12 @@ package player
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"math/rand/v2"
+	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -173,6 +176,23 @@ func (p *Player) PlayQueue(tracks []netease.Track, start int) {
 		return
 	}
 	p.load(start)
+}
+
+// AddToQueue adds tracks to the end of the queue without changing what
+// plays, and starts the first when nothing does. It returns how many were
+// added, those already in the queue left out.
+func (p *Player) AddToQueue(tracks []netease.Track) int {
+	before := len(p.queue)
+	p.appendTracks(tracks)
+	added := len(p.queue) - before
+	if added > 0 {
+		if p.track == nil {
+			p.load(len(p.order) - added)
+		} else {
+			p.sync()
+		}
+	}
+	return added
 }
 
 // PlayRadio plays tracks in their order, then goes on with those feed
@@ -655,7 +675,7 @@ func (p *Player) loadAttempt(at, skipped int, play bool, from time.Duration, dir
 	p.track = &t
 	p.loading, p.playing, p.err = true, play, ""
 	p.awaiting = false
-	p.lyrics, p.lyricsLoaded = nil, false
+	p.lyrics, p.lyricsLoaded = nil, t.LocalPath != ""
 	p.pending = from
 	p.announce(&t, nil)
 	p.refill()
@@ -675,19 +695,23 @@ func (p *Player) loadAttempt(at, skipped int, play bool, from time.Duration, dir
 		}
 	}()
 
-	go func() {
-		lrc, trans, yrc, err := netease.Lyrics(t.ID)
-		var lines []lyrics.Line
-		if err == nil {
-			lines = lyrics.Build(lrc, trans, yrc)
-		}
-		p.post(func() {
-			if gen == p.gen {
-				p.lyrics = lines
-				p.lyricsLoaded = true
+	// A file on disk has no lyrics to fetch; its
+	// tags may have none either.
+	if t.LocalPath == "" {
+		go func() {
+			lrc, trans, yrc, err := netease.Lyrics(t.ID)
+			var lines []lyrics.Line
+			if err == nil {
+				lines = lyrics.Build(lrc, trans, yrc)
 			}
-		})
-	}()
+			p.post(func() {
+				if gen == p.gen {
+					p.lyrics = lines
+					p.lyricsLoaded = true
+				}
+			})
+		}()
+	}
 	go func() {
 		info, s, err := p.openContext(ctx, t, level)
 		p.post(func() {
@@ -759,7 +783,8 @@ func (p *Player) loadAttempt(at, skipped int, play bool, from time.Duration, dir
 }
 
 // open opens track t's audio at level: kept in the cache, or else
-// streamed into it, and kept once it has all come in.
+// streamed into it, and kept once it has all come in. A song of the
+// listener's folder opens where it is, and is not kept again.
 func (p *Player) open(t netease.Track, level string) (*netease.Stream, stream, error) {
 	return p.openContext(context.Background(), t, level)
 }
@@ -769,6 +794,32 @@ var songURL = netease.SongURLContext
 func (p *Player) openContext(ctx context.Context, t netease.Track, level string) (*netease.Stream, stream, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, nil, err
+	}
+	if t.LocalPath != "" {
+		f, err := os.Open(t.LocalPath)
+		if err != nil {
+			return nil, nil, fmt.Errorf("本地文件无法读取：%s", filepath.Base(t.LocalPath))
+		}
+		info, err := f.Stat()
+		if err != nil {
+			f.Close()
+			return nil, nil, fmt.Errorf("本地文件无法读取：%s", filepath.Base(t.LocalPath))
+		}
+		ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(t.LocalPath)), ".")
+		if ext != "mp3" && ext != "flac" {
+			f.Close()
+			return nil, nil, fmt.Errorf("不支持的本地音乐格式：%s", ext)
+		}
+		st := &netease.Stream{Size: info.Size(), Type: ext, Level: "exhigh"}
+		if ext == "flac" {
+			st.Level = "lossless"
+		}
+		s, err := openStream(opened(f, info.Size()), t.Duration)
+		if err != nil {
+			f.Close()
+			return nil, nil, err
+		}
+		return st, s, nil
 	}
 	dl, info, ok := p.Cache.lookup(t.ID, level)
 	if ok {

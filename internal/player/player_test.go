@@ -20,6 +20,21 @@ func TestPlayEmptyQueue(t *testing.T) {
 	}
 }
 
+// Adding to the queue keeps what plays and leaves out songs already in it.
+func TestAddToQueueKeepsCurrent(t *testing.T) {
+	p := &Player{at: -1}
+	p.Cue([]netease.Track{{ID: 1}, {ID: 2}})
+	if added := p.AddToQueue([]netease.Track{{ID: 2}, {ID: 3}}); added != 1 {
+		t.Fatalf("added %d, want 1", added)
+	}
+	if q := p.Queue(); len(q) != 3 || q[2].ID != 3 {
+		t.Fatalf("queue %+v", q)
+	}
+	if cur := p.Current(); cur == nil || cur.ID != 1 {
+		t.Fatalf("current %+v", cur)
+	}
+}
+
 // The next cover must use the same order as Next and disappear at a radio's end.
 func TestNextIndexUsesPlayOrder(t *testing.T) {
 	p := &Player{at: -1}

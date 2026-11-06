@@ -41,7 +41,7 @@ func (a *app) view(c *ui.Context) {
 		c.Root().Background(ui.Transparent)
 	}
 	root := ui.Box(c).Fill()
-	if !c.Focused(a.searchBox) && !c.Focused(a.filterBox) {
+	if !c.Focused(a.searchBox) && !c.Focused(a.filterBox) && !c.Focused(a.downloadBox) {
 		// Space plays and pauses wherever the focus is, as in Music. On
 		// the container around everything, it comes before a button the
 		// pointer focused, which would take Space as a click; on the
@@ -85,6 +85,7 @@ func (a *app) view(c *ui.Context) {
 				// positioned, they paint over it.
 				a.pageTop(c)
 				a.playerBar(c)
+				a.batchBar(c)
 			})
 		})
 		a.coverFlightView(c)
@@ -94,10 +95,13 @@ func (a *app) view(c *ui.Context) {
 	a.loginDialog(c)
 	a.playlistNameDialog(c)
 	a.deletePlaylistDialog(c)
+	a.downloadDeleteDialog(c)
 	a.settingsPanel(c)
 	a.accentDialog(c)
 	a.updateDialog(c)
+	a.shortcutEditorDialog(c)
 	a.menuOverlay(c)
+	a.downloadQueueDialog(c)
 	a.paneToasts(c)
 	if a.toast != "" {
 		c.Toast(a.toast)
@@ -143,6 +147,17 @@ func (a *app) open(r route) {
 
 // show shows the page of r.
 func (a *app) show(r route) {
+	if a.batch.on {
+		keep := false
+		if a.batch.downloads {
+			keep = r.page == pageDownloads
+		} else {
+			keep = r.page == pagePlaylist && r.id == a.batch.playlist
+		}
+		if !keep {
+			a.batch = batchSelection{}
+		}
+	}
 	a.pageDir = pageLevel(r) - pageLevel(a.route)
 	a.route = r
 	if r.page == pageSearch {
@@ -170,6 +185,8 @@ func (a *app) load(r route) {
 		a.loadPodcast(r.id)
 	case pagePodcasts:
 		a.loadPodcastTab()
+	case pageDownloads:
+		a.loadDownloads(false)
 	}
 }
 
@@ -221,10 +238,10 @@ func (a *app) sidebar(c *ui.Context) {
 		nav.Children(func() {
 			ui.Scroll(c.Key("nav")).TrackScroll(&a.navScroll).Fill().Padding(0, 6).Gap(4).Children(func() {
 				a.navItem(c, iconHome, "为你推荐", route{page: pageHome})
-				a.navItem(c, iconDaily, "每日推荐", route{page: pageDaily})
 				a.navItem(c, iconRadio, "私人 FM", route{page: pageFM})
 				a.navItem(c, iconCharts, "排行榜", route{page: pageCharts})
 				a.navItem(c, iconPodcast, "播客", route{page: pagePodcasts})
+				a.navItem(c, iconDownload, "下载歌曲", route{page: pageDownloads})
 				if a.searched.query != "" {
 					a.navItem(c, iconSearch, "搜索结果", a.searched)
 				}
@@ -438,6 +455,8 @@ func (a *app) content(c *ui.Context) {
 			a.podcastPage(c)
 		case pagePodcasts:
 			a.podcastsPage(c)
+		case pageDownloads:
+			a.downloadsPage(c)
 		}
 	})
 }

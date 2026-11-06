@@ -83,3 +83,23 @@ func TestSongURLPreviewRemainsUnavailable(t *testing.T) {
 		}
 	}
 }
+
+// When the desktop API answers -460, the web player's stream is used.
+func TestSongURLFallsBackToWeb(t *testing.T) {
+	old := http.DefaultTransport
+	defer func() { http.DefaultTransport = old }()
+	http.DefaultTransport = songContextTransport(func(r *http.Request) (*http.Response, error) {
+		body := `{"code":-460}`
+		if r.URL.Host == "music.163.com" {
+			body = `{"code":200,"data":[{"url":"http://audio.test/web","type":"mp3","size":123,"level":"exhigh","peak":0.5}]}`
+		}
+		return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
+	})
+	st, err := SongURL(1, "exhigh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.URL != "https://audio.test/web" || st.Size != 123 || st.Type != "mp3" || st.Peak != 0.5 {
+		t.Fatalf("stream %+v", st)
+	}
+}

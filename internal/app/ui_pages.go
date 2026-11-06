@@ -293,44 +293,62 @@ func (a *app) playlistHeader(c *ui.Context, pl *netease.Playlist) {
 			if d := strings.TrimSpace(pl.Description); d != "" {
 				a.playlistSays(c, strings.ReplaceAll(d, "\n", " "))
 			}
-			ui.Row(c).Gap(10).Margin(10, 0, 0, 0).Children(func() {
-				if pillButton(c.Key("play"), iconPlay, "播放", p.accent, p.onAccent).Clicked() {
-					a.playList(pl.Tracks, false)
+			if a.batchActive(pl.ID) {
+				hint := "选择歌曲，完成后在下方选择下载、收藏或加入队列"
+				if pl.SpecialType == 5 {
+					hint = "选择歌曲，完成后在下方选择下载、取消喜欢或加入队列"
 				}
-				if pillButton(c.Key("shuffle"), iconShuffle, "随机播放", p.hover.Over(p.bg), p.text).Clicked() {
-					a.playList(pl.Tracks, true)
-				}
-				if a.savable(pl) {
-					icon, label := iconPlus, "收藏"
-					if a.isSaved(pl) {
-						icon, label = iconCheck, "已收藏"
+				ui.Text(c, hint).FontSize(12.5).TextColor(p.muted).Margin(10, 0, 0, 0)
+			} else {
+				ui.Row(c).Gap(10).Margin(10, 0, 0, 0).Children(func() {
+					if pillButton(c.Key("play"), iconPlay, "播放", p.accent, p.onAccent).Clicked() {
+						a.playList(pl.Tracks, false)
 					}
-					if pillButton(c.Key("save"), icon, label, p.hover.Over(p.bg), p.text).Clicked() {
-						a.toggleSaved(*pl)
+					if pillButton(c.Key("shuffle"), iconShuffle, "随机播放", p.hover.Over(p.bg), p.text).Clicked() {
+						a.playList(pl.Tracks, true)
 					}
-				}
-				if mine := a.editable(pl.ID); mine != nil {
-					more := iconButton(c.Key("more"), iconMore, 18, p.muted, "更多")
-					if more.Clicked() {
-						a.menuBelow(more, false, a.playlistMenu(mine), nil)
+					if a.savable(pl) {
+						icon, label := iconPlus, "收藏"
+						if a.isSaved(pl) {
+							icon, label = iconCheck, "已收藏"
+						}
+						if pillButton(c.Key("save"), icon, label, p.hover.Over(p.bg), p.text).Clicked() {
+							a.toggleSaved(*pl)
+						}
+						details := iconButton(c.Key("details"), iconMore, 18, p.muted, "歌单详情")
+						if details.Clicked() {
+							a.menuBelow(details, true, a.playlistDetailsMenu(pl), a.playlistDetailsHead(pl))
+						}
 					}
-				}
-				switch {
-				case pl.SpecialType != 5:
-				case a.pl.Radio() == heartRadio:
-					if pillButton(c.Key("heart"), iconX, "退出心动模式", p.hover.Over(p.bg), p.text).Clicked() {
-						a.exitRadio()
+					if mine := a.editable(pl.ID); mine != nil {
+						more := iconButton(c.Key("more"), iconMore, 18, p.muted, "更多")
+						if more.Clicked() {
+							a.menuBelow(more, false, a.playlistMenu(mine), nil)
+						}
 					}
-				default:
-					label := "心动模式"
-					if a.radioStarting == heartRadio {
-						label = "正在开启…"
+					switch {
+					case pl.SpecialType != 5:
+					case a.pl.Radio() == heartRadio:
+						if pillButton(c.Key("heart"), iconX, "退出心动模式", p.hover.Over(p.bg), p.text).Clicked() {
+							a.exitRadio()
+						}
+					default:
+						label := "心动模式"
+						if a.radioStarting == heartRadio {
+							label = "正在开启…"
+						}
+						if pillButton(c.Key("heart"), iconHeartFill, label, p.hover.Over(p.bg), p.text).Clicked() {
+							a.startHeartMode()
+						}
 					}
-					if pillButton(c.Key("heart"), iconHeartFill, label, p.hover.Over(p.bg), p.text).Clicked() {
-						a.startHeartMode()
+					if pl.SpecialType == 5 {
+						details := iconButton(c.Key("details"), iconMore, 18, p.muted, "歌单详情")
+						if details.Clicked() {
+							a.menuBelow(details, true, a.playlistDetailsMenu(pl), a.playlistDetailsHead(pl))
+						}
 					}
-				}
-			})
+				})
+			}
 		})
 		a.coverStack(c, pl)
 	})
@@ -340,6 +358,7 @@ func (a *app) playlistHeader(c *ui.Context, pl *netease.Playlist) {
 // plays the list from the track clicked.
 func (a *app) trackRows(c *ui.Context, tracks []netease.Track, covers bool, header func(c *ui.Context), footer ...func(c *ui.Context)) {
 	p := a.pal
+	batch := a.rowsBatchActive()
 	cur := a.pl.Current()
 	// A song's menu can take it out of the playlist it is listed in.
 	var pid int64
@@ -350,6 +369,10 @@ func (a *app) trackRows(c *ui.Context, tracks []netease.Track, covers bool, head
 	// An album's page has no column of the album its songs are on.
 	wide := w-sidebarWidth > 820 && a.route.page != pageAlbum
 	top, bottom := a.insets(c)
+	listBottom := bottom
+	if batch {
+		listBottom += 64
+	}
 	// Rows out of view are not built, their marks with them: a list
 	// scrolled away from its start or end has content under the bars.
 	a.underTop, a.underBottom = true, true
@@ -373,11 +396,16 @@ func (a *app) trackRows(c *ui.Context, tracks []netease.Track, covers bool, head
 		i--
 		tr := &tracks[i]
 		playing := cur != nil && cur.ID == tr.ID
+		selected := batch && a.batch.selected[tr.ID]
 		row := ui.ButtonBase(c.Key(tr.ID)).Height(54).PaddingX(12).Gap(14).Radius(14).AlignItems(ui.Center).FocusRing(false).Label(tr.Name)
-		a.songContext(row, tr, pid)
+		if !batch {
+			a.songContext(row, tr, pid)
+		}
 		hovered := row.Hovered()
 		bg := ui.Transparent
 		switch {
+		case selected:
+			bg = p.accent.Alpha(0.14)
 		case playing:
 			bg = p.accent.Alpha(0.09)
 		case hovered:
@@ -387,7 +415,7 @@ func (a *app) trackRows(c *ui.Context, tracks []netease.Track, covers bool, head
 			}
 		}
 		row.Background(row.AnimateColor("bg", bg, ui.Animation{Duration: 140 * time.Millisecond}))
-		if playing {
+		if playing && !batch {
 			a.rowGlow(row)
 		}
 		shown := a.rowIn(c, i)
@@ -402,6 +430,10 @@ func (a *app) trackRows(c *ui.Context, tracks []netease.Track, covers bool, head
 		}
 		row.Children(func() {
 			ui.Box(c).Width(26).Center().Children(func() {
+				if batch {
+					a.batchCheck(c, selected)
+					return
+				}
 				switch {
 				case playing:
 					a.nowPlayingBars(c)
@@ -432,7 +464,11 @@ func (a *app) trackRows(c *ui.Context, tracks []netease.Track, covers bool, head
 					if !tr.Playable() {
 						ui.Text(c, "VIP").FontSize(9).FontWeight(800).TextColor(p.accent).Padding(0, 4).Radius(3).Border(1, p.accent.Alpha(0.6))
 					}
-					a.artistLinks(c, tr, p.muted, p.text).FontSize(12.5).SingleLine().Shrink(1).MinWidth(0)
+					if batch {
+						ui.Text(c, tr.ArtistNames()).FontSize(12.5).TextColor(p.muted).SingleLine().Shrink(1).MinWidth(0)
+					} else {
+						a.artistLinks(c, tr, p.muted, p.text).FontSize(12.5).SingleLine().Shrink(1).MinWidth(0)
+					}
 					if tr.Reason != "" {
 						ui.Text(c, tr.Reason).FontSize(10.5).FontWeight(600).TextColor(p.accent).Padding(1, 6).Radius(999).Background(p.accent.Alpha(0.1)).SingleLine()
 					}
@@ -446,7 +482,7 @@ func (a *app) trackRows(c *ui.Context, tracks []netease.Track, covers bool, head
 				}
 				album := ui.RichText(c).Grow(2).Basis(0).MinWidth(0).FontSize(12.5).TextColor(shade).SingleLine()
 				album.Children(func() {
-					if tr.Album.ID == 0 {
+					if batch || tr.Album.ID == 0 {
 						ui.Text(c, tr.Album.Name)
 					} else {
 						a.link(c.Key("album"), tr.Album.Name, shade, p.text, route{page: pageAlbum, id: tr.Album.ID})
@@ -454,17 +490,24 @@ func (a *app) trackRows(c *ui.Context, tracks []netease.Track, covers bool, head
 				})
 			}
 			// A liked song's heart shows; the others' as the pointer is on them.
-			ui.Box(c).Size(32, 32).Center().Children(func() {
-				if a.liked[tr.ID] || hovered {
-					a.likeButton(c.Key("like"), tr, 15, p.muted)
-				}
-			})
+			if tr.LocalPath == "" && !batch {
+				ui.Box(c).Size(32, 32).Center().Children(func() {
+					if a.liked[tr.ID] || hovered {
+						a.likeButton(c.Key("like"), tr, 15, p.muted)
+					}
+				})
+			}
 			ui.Text(c, clock(tr.Length())).FontSize(12.5).FontFeatures("tnum").TextColor(p.faint).Width(44).TextAlign(ui.End)
 		})
-		if row.Clicked() && tr.Playable() {
-			a.pl.PlayQueue(tracks, i)
+		if row.Clicked() {
+			switch {
+			case batch:
+				a.toggleBatch(tr.ID)
+			case tr.Playable():
+				a.pl.PlayQueue(tracks, i)
+			}
 		}
-	}).Grow(1).Padding(top+pageGap, pagePad-12, bottom+32, pagePad-12).ScrollbarInsets(top, 0, bottom, 0)
+	}).Grow(1).Padding(top+pageGap, pagePad-12, listBottom+32, pagePad-12).ScrollbarInsets(top, 0, listBottom, 0)
 }
 
 // nowPlayingBars dance in the row of the track playing.

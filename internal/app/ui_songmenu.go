@@ -16,14 +16,25 @@ var copyText = func(text string) error { return mygo.Clipboard.Write(transfer.Te
 // or album's, and, signed in, adding it to a playlist or taking it out of
 // pid, the playlist it is listed in, if set.
 func (a *app) songActions(tr *netease.Track, pid int64) [][]menuAction {
+	if tr.LocalPath != "" {
+		return a.downloadedSongActions(tr)
+	}
 	if tr.ProgramID != 0 {
 		return a.programActions(tr)
+	}
+	// The list can move under the menu; the song it names cannot.
+	song := *tr
+	a.loadDownloads(false)
+	save := menuAction{label: "下载到本机", icon: iconDownload, do: func() { a.startDownload(song) }}
+	if a.downloaded(tr.ID) {
+		save = menuAction{label: "从本地删除", icon: iconTrash, do: func() { a.confirmDeleteDownload(song) }}
 	}
 	groups := [][]menuAction{
 		{
 			{label: "复制歌名", icon: iconCopy, do: func() { copyText(tr.Name) }},
 			{label: "复制歌名和歌手", icon: iconCopy, do: func() { copyText(tr.Name + " - " + tr.ArtistNames()) }},
 		},
+		{save},
 		{{label: "复制链接", icon: iconLink, do: func() { copyText(tr.URL()) }}},
 	}
 	// Its artists' and album's pages, those NetEase has.
@@ -74,7 +85,13 @@ func (a *app) songHead(tr *netease.Track) func(c *ui.Context, ink paneInk) {
 
 // songMenu is three dots that open the menu of tr, over Now Playing.
 func (a *app) songMenu(c *ui.Context, tr *netease.Track, size float32, color ui.Color) ui.Element {
-	b := iconButton(c, iconMore, size, color, "更多")
+	return a.songMenuLabeled(c, tr, size, color, "更多")
+}
+
+// songMenuLabeled is songMenu with the name its button is known by: the
+// player bar calls it details.
+func (a *app) songMenuLabeled(c *ui.Context, tr *netease.Track, size float32, color ui.Color, label string) ui.Element {
+	b := iconButton(c, iconMore, size, color, label)
 	if b.Clicked() {
 		a.menuBelow(b, true, a.songActions(tr, 0), a.songHead(tr))
 	}

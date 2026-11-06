@@ -8,6 +8,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -51,6 +54,9 @@ type Track struct {
 	ProgramID   int64  `json:"programId,omitempty"`
 	PodcastID   int64  `json:"podcastId,omitempty"`
 	Description string `json:"description,omitempty"`
+	// LocalPath is where a downloaded or otherwise local song is, rather
+	// than streamed from NetEase: its cover is a file too, in PicURL.
+	LocalPath string `json:"localPath,omitempty"`
 }
 
 // Privilege is what NetEase lets the listener signed in, or nobody, do
@@ -154,6 +160,11 @@ func (p *Playlist) Cover() string {
 	return p.PicURL
 }
 
+// URL is the playlist's page on the NetEase site.
+func (p *Playlist) URL() string {
+	return apiBase + "/playlist?id=" + strconv.FormatInt(p.ID, 10)
+}
+
 type apiError struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
@@ -161,11 +172,15 @@ type apiError struct {
 }
 
 func get(path string, query url.Values, out any) error {
+	return getContext(context.Background(), path, query, out)
+}
+
+func getContext(ctx context.Context, path string, query url.Values, out any) error {
 	u := apiBase + path
 	if len(query) > 0 {
 		u += "?" + query.Encode()
 	}
-	req, err := http.NewRequest("GET", u, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
 	if err != nil {
 		return err
 	}
@@ -273,13 +288,18 @@ func Charts() ([]Playlist, error) {
 	return out, nil
 }
 
-// PlaylistDetail returns a playlist with up to 1000 of its tracks.
+// playlistTrackLimit is far above what an ordinary listener keeps in one
+// playlist; NetEase itself may still cap a list below it.
+const playlistTrackLimit = 10000
+
+// PlaylistDetail returns a playlist with up to playlistTrackLimit of its
+// tracks.
 func PlaylistDetail(id int64) (*Playlist, error) {
 	var res struct {
 		Playlist   Playlist    `json:"playlist"`
 		Privileges []Privilege `json:"privileges"`
 	}
-	q := url.Values{"id": {strconv.FormatInt(id, 10)}, "n": {"1000"}}
+	q := url.Values{"id": {strconv.FormatInt(id, 10)}, "n": {strconv.Itoa(playlistTrackLimit)}}
 	if err := get("/api/v6/playlist/detail", q, &res); err != nil {
 		return nil, err
 	}
@@ -291,7 +311,7 @@ func PlaylistDetail(id int64) (*Playlist, error) {
 	// Long playlists list only their first tracks in full: the rest by id.
 	if len(p.Tracks) < len(p.TrackIDs) {
 		var ids []int64
-		for _, t := range p.TrackIDs[len(p.Tracks):min(len(p.TrackIDs), 1000)] {
+		for _, t := range p.TrackIDs[len(p.Tracks):min(len(p.TrackIDs), playlistTrackLimit)] {
 			ids = append(ids, t.ID)
 		}
 		more, err := SongDetails(ids)
@@ -436,14 +456,43 @@ func SongURL(id int64, level string) (*Stream, error) {
 
 // SongURLContext stops asking for a stream when the listener changes tracks.
 func SongURLContext(ctx context.Context, id int64, level string) (*Stream, error) {
+	st, err := eapiSongURL(ctx, id, level)
+	if err == nil {
+		return st, nil
+	}
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	// The desktop eapi sometimes refuses a perfectly playable song with
+	// -460, while the web player still serves it. Fall back there when the
+	// answer is a service response, not a cancelled request or a preview.
+	var service *StreamError
+	if !errors.As(err, &service) || service.Cause != nil {
+		return nil, err
+	}
+	if st, webErr := webSongURL(ctx, id, level); webErr == nil {
+		return st, nil
+	} else if errors.Is(webErr, ErrUnavailable) {
+		return nil, ErrUnavailable
+	}
+	return nil, err
+}
+
+type songURLData struct {
+	ID            int64           `json:"id"`
+	URL           string          `json:"url"`
+	Size          int64           `json:"size"`
+	Type          string          `json:"type"`
+	Level         string          `json:"level"`
+	Gain          float64         `json:"gain"`
+	Peak          *float64        `json:"peak"`
+	FreeTrialInfo json.RawMessage `json:"freeTrialInfo"`
+}
+
+func eapiSongURL(ctx context.Context, id int64, level string) (*Stream, error) {
 	var res struct {
-		Code int `json:"code"`
-		Data []struct {
-			Stream
-			URL           string          `json:"url"`
-			Peak          *float64        `json:"peak"`
-			FreeTrialInfo json.RawMessage `json:"freeTrialInfo"`
-		} `json:"data"`
+		Code int           `json:"code"`
+		Data []songURLData `json:"data"`
 	}
 	encode := "mp3"
 	if Lossless(level) {
@@ -459,16 +508,52 @@ func SongURLContext(ctx context.Context, id int64, level string) (*Stream, error
 	if len(res.Data) == 0 {
 		return nil, &StreamError{Code: res.Code}
 	}
-	d := res.Data[0]
+	return streamFromSongURLData(res.Code, res.Data[0], level)
+}
+
+// webSongURL asks the web player for the same stream, which works when the
+// desktop eapi refuses one.
+func webSongURL(ctx context.Context, id int64, level string) (*Stream, error) {
+	encode := "mp3"
+	if Lossless(level) {
+		encode = "flac"
+	}
+	q := url.Values{
+		"ids":        {fmt.Sprintf("[%d]", id)},
+		"level":      {level},
+		"encodeType": {encode},
+	}
+	var res struct {
+		Code int           `json:"code"`
+		Data []songURLData `json:"data"`
+	}
+	if err := getContext(ctx, "/api/song/enhance/player/url/v1", q, &res); err != nil {
+		return nil, err
+	}
+	if res.Code != 0 && res.Code != 200 {
+		return nil, &StreamError{Code: res.Code}
+	}
+	if len(res.Data) == 0 {
+		return nil, &StreamError{Code: res.Code}
+	}
+	return streamFromSongURLData(res.Code, res.Data[0], level)
+}
+
+func streamFromSongURLData(code int, d songURLData, level string) (*Stream, error) {
 	// A preview of a VIP song is no song.
 	if len(d.FreeTrialInfo) > 0 && string(d.FreeTrialInfo) != "null" {
 		return nil, ErrUnavailable
 	}
 	if strings.TrimSpace(d.URL) == "" {
-		return nil, &StreamError{Code: res.Code}
+		return nil, &StreamError{Code: code}
 	}
-	s := d.Stream
-	s.Type = strings.ToLower(s.Type)
+	s := Stream{Size: d.Size, Type: strings.ToLower(strings.TrimSpace(d.Type)), Level: d.Level, Gain: d.Gain}
+	if s.Type == "" {
+		s.Type = "mp3"
+		if Lossless(level) {
+			s.Type = "flac"
+		}
+	}
 	if s.Type != "" && s.Type != "mp3" && s.Type != "flac" {
 		return nil, fmt.Errorf("unsupported format %s", s.Type)
 	}
@@ -526,18 +611,26 @@ func Lyrics(id int64) (lrc, translation, yrc string, err error) {
 	return lrc, translation, yrc, nil
 }
 
-// Sized asks the image CDN for a picture of n×n pixels.
+// Sized asks the image CDN for a picture of n×n pixels. A local cover is
+// already the size it is, and stays where it is.
 func Sized(pic string, n int) string {
 	if pic == "" {
 		return ""
+	}
+	if !strings.HasPrefix(pic, "http://") && !strings.HasPrefix(pic, "https://") {
+		return pic
 	}
 	pic = strings.Replace(pic, "http://", "https://", 1)
 	return fmt.Sprintf("%s?param=%dy%d", pic, n, n)
 }
 
-// Fetch returns what is at url, as a cover the image CDN serves.
-func Fetch(url string) ([]byte, error) {
-	req, err := http.NewRequest("GET", url, nil)
+// Fetch returns what is at raw, a cover the image CDN serves or a local
+// file.
+func Fetch(raw string) ([]byte, error) {
+	if path, ok := localPath(raw); ok {
+		return os.ReadFile(path)
+	}
+	req, err := http.NewRequest("GET", raw, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -551,4 +644,24 @@ func Fetch(url string) ([]byte, error) {
 		return nil, errors.New(res.Status)
 	}
 	return io.ReadAll(res.Body)
+}
+
+// localPath returns the file raw names, if it names one rather than a
+// picture on the image CDN.
+func localPath(raw string) (string, bool) {
+	if strings.HasPrefix(raw, "file://") {
+		u, err := url.Parse(raw)
+		if err != nil {
+			return "", false
+		}
+		path := u.Path
+		if runtime.GOOS == "windows" {
+			path = strings.TrimPrefix(path, "/")
+		}
+		return filepath.FromSlash(path), true
+	}
+	if strings.Contains(raw, "://") {
+		return "", false
+	}
+	return raw, filepath.IsAbs(raw)
 }

@@ -118,3 +118,47 @@ func TestSongMenuOnRightClick(t *testing.T) {
 		t.Error("the right click played the song")
 	}
 }
+
+// The player bar's three dots open the song's menu, as Now Playing's do.
+func TestPlayerBarDetailsMenu(t *testing.T) {
+	a := newTestApp()
+	a.settings = defaultSettings()
+	a.pl.Cue([]netease.Track{{ID: 7, Name: "宝船", Artists: []netease.Artist{{Name: "DOUDOU"}}, Duration: 200000}})
+	tt := ui.NewTester(a.view, 1200, 800)
+	tt.Frame()
+	if err := tt.Click("歌曲详情"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	for _, label := range []string{"复制歌名", "复制歌名和歌手", "下载到本机", "复制链接"} {
+		if !slices.Contains(tt.Texts(), label) {
+			t.Fatalf("the details menu has no %s: %q", label, tt.Texts())
+		}
+	}
+}
+
+// A menu opened under a control follows it when the window grows.
+func TestMenuFollowsWindowResize(t *testing.T) {
+	a := newTestApp()
+	a.settings = defaultSettings()
+	a.pl.Cue([]netease.Track{{ID: 7, Name: "宝船", Artists: []netease.Artist{{Name: "DOUDOU"}}, Duration: 200000}})
+	tt := ui.NewTester(a.view, 1200, 800)
+	tt.Frame()
+	if err := tt.Click("歌曲详情"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	before, ok := tt.Find("复制歌名")
+	if !ok {
+		t.Fatal("the details menu did not open")
+	}
+	tt.SetSize(1500, 900)
+	tt.Frame()
+	after, ok := tt.Find("复制歌名")
+	if !ok {
+		t.Fatal("the details menu closed when the window grew")
+	}
+	if after.X <= before.X+20 || after.Y <= before.Y+20 {
+		t.Fatalf("menu stayed at %v, then %v", before, after)
+	}
+}
