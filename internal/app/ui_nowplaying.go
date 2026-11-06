@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"math"
 	"time"
 
@@ -617,8 +618,8 @@ func (a *app) timedLines(c *ui.Context, scroll ui.Element, lines []lyrics.Line, 
 									}
 								})
 								if pl.Playing() {
-									// Words brighten smoothly enough at 25 frames a second.
-									c.After(40 * time.Millisecond)
+									// Words brighten at the frame rate set for what moves on its own.
+									c.After(motionFrame())
 								}
 							} else {
 								ui.Text(c, l.Text).FontSize(st.size).FontWeight(st.weight).LineHeight(st.lineHeight).LetterSpacing(-0.4).TextColor(white)
@@ -627,7 +628,7 @@ func (a *app) timedLines(c *ui.Context, scroll ui.Element, lines []lyrics.Line, 
 								a.lineGlow(c, l, pos, st)
 							}
 						})
-						if l.Translation != "" {
+						if l.Translation != "" && a.settings.LyricTrans {
 							ui.Text(c, l.Translation).FontSize(17).FontWeight(600).TextColor(white.Alpha(0.7))
 						}
 					})
@@ -752,13 +753,33 @@ func (a *app) queuePane(c *ui.Context) {
 		}
 		a.queueAt = at
 	}
-	a.queueList.Key = func(row int) any { return order[row] }
+	queue := pl.Queue()
+	// Keyed by the song: removing one shifts the indices of those after it.
+	a.queueList.Key = func(row int) any { return queue[order[row]].ID }
+	// Dragged, the rows move in the play order; the song playing plays on.
+	a.queueList.Reorder = func(rows []int, to int) { pl.Reorder(rows, to) }
+	if len(order) > 1 {
+		ui.Row(c.Key("queue-head")).Height(36).PaddingX(10).Gap(10).AlignItems(ui.Center).Children(func() {
+			left := len(order) - max(at, 0) - 1
+			ui.Text(c, fmt.Sprintf("共 %d 首 · 接下来 %d 首 · 拖动可调整顺序", len(order), left)).FontSize(12).TextColor(white.Alpha(0.5)).Grow(1).MinWidth(0).SingleLine()
+			if left > 0 && pillButton(c.Key("clear-queue"), iconTrash, "清空待播", white.Alpha(0.1), white).Clicked() {
+				pl.ClearUpcoming()
+				a.toast = "已清空待播清单"
+			}
+		})
+	}
 	ui.List(c.Key("queue"), &a.queueList, len(order), func(r int) {
 		i := order[r]
-		tr := &pl.Queue()[i]
+		tr := &queue[i]
 		playing := r == at
-		row := ui.ButtonBase(c.Key(i)).Height(58).PaddingX(10).Gap(14).Radius(14).AlignItems(ui.Center).FocusRing(false).Label(tr.Name)
-		a.songContext(row, tr, 0)
+		row := ui.ButtonBase(c.Key(tr.ID)).Height(58).PaddingX(10).Gap(14).Radius(14).AlignItems(ui.Center).FocusRing(false).Label(tr.Name)
+		a.contextMenu(row, a.nowPlaying, func() [][]menuAction {
+			acts := a.songActions(tr, 0)
+			if !playing {
+				acts = append([][]menuAction{{{label: "从待播清单移除", icon: iconX, do: func() { pl.RemoveAt(r) }}}}, acts...)
+			}
+			return acts
+		}, a.songHead(tr))
 		switch {
 		case playing:
 			row.Background(white.Alpha(0.12))
@@ -775,6 +796,14 @@ func (a *app) queuePane(c *ui.Context) {
 				a.artistLinks(c, tr, white.Alpha(0.55), white).FontSize(12.5).SingleLine()
 			})
 			ui.Text(c, clock(tr.Length())).FontSize(12).FontFeatures("tnum").TextColor(white.Alpha(0.4))
+			// The song playing stays: there would be nothing in its place.
+			if !playing {
+				reveal(ui.Box(c.Key("remove-reveal")), row.Hovered()).Children(func() {
+					if iconButton(c.Key("remove"), iconX, 12, white.Alpha(0.6), "从待播清单移除").Size(26, 26).Clicked() {
+						pl.RemoveAt(r)
+					}
+				})
+			}
 		})
 		if row.Clicked() && tr.Playable() && !playing {
 			pl.Jump(i)

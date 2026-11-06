@@ -210,7 +210,7 @@ func (a *app) deskView(c *ui.Context) {
 				l := &lines[cur]
 				a.deskLine(c, "main", l.Text, l.Words, pos, 32*scale, look, true)
 				switch {
-				case l.Translation != "":
+				case l.Translation != "" && a.settings.LyricTrans:
 					a.deskLine(c, "next", l.Translation, nil, pos, 19*scale, look, false)
 				case cur+1 < len(lines):
 					a.deskLine(c, "next", lines[cur+1].Text, nil, pos, 19*scale, look, false)
@@ -222,7 +222,7 @@ func (a *app) deskView(c *ui.Context) {
 		}
 	})
 	if pl.Playing() && len(lines) > 0 {
-		c.After(40 * time.Millisecond)
+		c.After(motionFrame())
 	}
 }
 
@@ -470,7 +470,7 @@ func (a *app) morphView(c *ui.Context) {
 	ui.Box(c.Key("capsule")).Absolute().Left(box.X).Top(box.Y).Size(box.W, box.H).Radius(lerp(m.corner[0], m.corner[1], k)).
 		Background(a.miniSurface()).Border(1, white.Alpha(0.14)).Shadow(0, 12, 30, -10, ui.RGBA(0, 0, 0, 0.45))
 	if tr := a.pl.Current(); tr != nil {
-		a.barDisc(c, tr, disc.W, discSmooth).Absolute().Left(disc.X).Top(disc.Y)
+		a.barDisc(c, tr, disc.W, motionFrame()).Absolute().Left(disc.X).Top(disc.Y)
 	}
 	c.AnimationFrame()
 	if t < 1 {
@@ -564,7 +564,7 @@ func (a *app) miniView(c *ui.Context) {
 			if tr == nil {
 				ui.Box(c).Size(miniDisc, miniDisc).Radius(999).Center().Background(white.Alpha(0.08)).Children(func() { mascotView(c, 52) })
 			} else {
-				a.barDisc(c, tr, miniDisc, discSmooth)
+				a.barDisc(c, tr, miniDisc, motionFrame())
 			}
 			ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(2).Children(func() {
 				ui.Row(c).Gap(6).AlignItems(ui.Start).Children(func() {

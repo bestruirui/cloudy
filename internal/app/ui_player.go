@@ -127,10 +127,10 @@ func (a *app) scrubber(c *ui.Context, st *scrubState, track, fill ui.Color, heig
 		}
 		switch {
 		case smoking > 0.01 && (pl.Playing() || smoking < 1):
-			// The smoke drifts slowly, under a point a frame at 30 frames
-			// a second, which show it smooth for a quarter of what a 120 Hz
-			// display would draw.
-			p.After(time.Second / 30)
+			// The smoke drifts slowly, at the frame rate set for what
+			// moves on its own (motionFrame), not at each of the display's
+			// refreshes.
+			p.After(motionFrame())
 		case pl.Playing() && !st.active && dur > 0:
 			// Again when the fill has moved a pixel of the screen, which
 			// takes a good part of a second, rather than every frame.
@@ -435,7 +435,7 @@ func (a *app) playerBar(c *ui.Context) {
 	// The controls keep the middle, between sides that share what is left:
 	// narrower, the middle gives up to 140 DIPs, and what plays keeps room
 	// for its cover, some of its title and its heart.
-	const controls = 4*32 + 3*4 // the floating windows, the speaker and the details
+	const controls = 6*32 + 5*4 // the floating windows, translation, adding to a playlist, the speaker and the details
 	bar := ui.Row(c).Absolute().Gap(20).AlignItems(ui.Center)
 	a.barBox = bar.LayoutBounds()
 	if liquid {
@@ -466,7 +466,7 @@ func (a *app) playerBar(c *ui.Context) {
 					// Another song's comes in over the last one's.
 					var shown ui.Element
 					if spinning {
-						shown = a.barDisc(c, tr, 48, discFrame)
+						shown = a.barDisc(c, tr, 48, motionFrame())
 					} else {
 						shown = a.cover(c.Key(tr.ID), tr.Album.PicURL, 120, 48, cover)
 					}
@@ -535,6 +535,22 @@ func (a *app) playerBar(c *ui.Context) {
 			}
 			if iconButton(c.Key("mini"), iconMiniWin, 16, muted, "迷你窗口").Clicked() {
 				a.showMini()
+			}
+			// The song's translation under each line of its lyrics, lit
+			// while it shows: Now Playing's and the desktop lyrics'.
+			trans := muted
+			if a.settings.LyricTrans {
+				trans = p.accent
+			}
+			if iconButton(c.Key("lyric-trans"), iconTranslate, 16, trans, "歌词翻译").Clicked() {
+				a.toggleLyricTrans()
+			}
+			// Adding the song playing to one of the listener's playlists.
+			if tr != nil && tr.ProgramID == 0 && tr.ID > 0 {
+				add := iconButton(c.Key("add-to-playlist"), iconListPlus, 16, muted, "添加到歌单")
+				if add.Clicked() {
+					a.addToPlaylistMenu(add, tr)
+				}
 			}
 			a.volumeButton(c, p.text.Alpha(0.75))
 			if tr != nil {

@@ -159,6 +159,36 @@ func (a *app) settingsBody(c *ui.Context) {
 				})
 			})
 
+			group("启动与性能", func() {
+				row("动画帧率", "旋转封面、播放页背景、逐字歌词等持续动画的帧率；滚动和页面切换始终跟随显示器", func() {
+					labels := make([]string, len(frameRates))
+					for i, r := range frameRates {
+						labels[i] = r.label
+					}
+					chosen := frameRateLabel(s.FrameRate)
+					if a.paneSelect(c.Key("frame-rate"), "动画帧率", &chosen, labels) {
+						for _, r := range frameRates {
+							if r.label == chosen {
+								s.FrameRate = r.fps
+							}
+						}
+						setFrameRate(s.FrameRate)
+						a.changed()
+					}
+				})
+				row("开机时启动", "登录 Windows 后自动打开 Cloudy", func() {
+					on := a.openAtLogin()
+					if ui.Switch(c.Key("open-at-login"), &on).Label("开机时启动").Changed() {
+						a.setOpenAtLogin(on)
+					}
+				})
+				row("开机启动时隐藏到托盘", "开机自动打开时不弹出窗口，从托盘图标打开", func() {
+					if ui.Switch(c.Key("start-hidden"), &s.StartHidden).Label("开机启动时隐藏到托盘").Disabled(!a.openAtLogin()).Changed() {
+						a.changed()
+					}
+				})
+			})
+
 			// Only on macOS: elsewhere the icon is always in the notification
 			// area.
 			if runtime.GOOS == "darwin" {

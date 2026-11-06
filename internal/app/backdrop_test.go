@@ -22,7 +22,7 @@ func TestBackdropDrifts(t *testing.T) {
 	now := time.Unix(0, 0)
 	var quiet [player.Bands]float32
 	for range 120 {
-		now = now.Add(backdropFrame)
+		now = now.Add(backdropFrame())
 		bd.step(now, true, quiet, true)
 	}
 	if bd.speed != 1 || bd.drift <= 0 {
@@ -32,14 +32,14 @@ func TestBackdropDrifts(t *testing.T) {
 	for i := range loud {
 		loud[i] = 1
 	}
-	now = now.Add(backdropFrame)
+	now = now.Add(backdropFrame())
 	bd.step(now, true, loud, true)
 	if bd.level.group(0, 6) <= 0.2 {
 		t.Errorf("bass %v on a beat", bd.level.group(0, 6))
 	}
 	moving := true
 	for range 120 {
-		now = now.Add(backdropFrame)
+		now = now.Add(backdropFrame())
 		moving = bd.step(now, false, quiet, false)
 	}
 	if moving || bd.speed != 0 {

@@ -40,6 +40,10 @@ type Player struct {
 	// Changed, if set, hears that what plays, where it is or whether it
 	// plays changed.
 	Changed func()
+	// StopAfterSong pauses as the song playing ends, once, rather than
+	// going on; SongStopped, if set, hears that it did.
+	StopAfterSong bool
+	SongStopped   func()
 
 	queue   []netease.Track
 	order   []int // the queue's indices in play order: shuffled or not
@@ -141,6 +145,20 @@ func (p *Player) announce(t *netease.Track, artwork []byte) {
 }
 
 func (p *Player) ended() {
+	if p.StopAfterSong {
+		p.StopAfterSong = false
+		if p.SongStopped != nil {
+			p.SongStopped()
+		}
+		// The next song waits, paused, for play to start it.
+		if at := p.nextPosition(); at >= 0 && p.repeat != RepeatOne {
+			p.loadSkipping(at, 0, false, 0, 1)
+			return
+		}
+		p.playing = false
+		p.sync()
+		return
+	}
 	if p.repeat == RepeatOne {
 		p.out.Seek(0)
 		p.out.Play()
@@ -675,7 +693,7 @@ func (p *Player) loadAttempt(at, skipped int, play bool, from time.Duration, dir
 	p.track = &t
 	p.loading, p.playing, p.err = true, play, ""
 	p.awaiting = false
-	p.lyrics, p.lyricsLoaded = nil, t.LocalPath != ""
+	p.lyrics, p.lyricsLoaded = nil, false
 	p.pending = from
 	p.announce(&t, nil)
 	p.refill()
@@ -695,23 +713,30 @@ func (p *Player) loadAttempt(at, skipped int, play bool, from time.Duration, dir
 		}
 	}()
 
-	// A file on disk has no lyrics to fetch; its
-	// tags may have none either.
-	if t.LocalPath == "" {
-		go func() {
-			lrc, trans, yrc, err := netease.Lyrics(t.ID)
-			var lines []lyrics.Line
-			if err == nil {
+	// A downloaded song is still NetEase's, whose lyrics it fetches; a
+	// file put in the folder by hand has only the .lrc beside it, if any,
+	// which is also what a downloaded song falls back to offline.
+	go func() {
+		var lines []lyrics.Line
+		var err error = errNoLyrics
+		if t.ID > 0 {
+			var lrc, trans, yrc string
+			if lrc, trans, yrc, err = lyricsOf(t.ID); err == nil {
 				lines = lyrics.Build(lrc, trans, yrc)
 			}
-			p.post(func() {
-				if gen == p.gen {
-					p.lyrics = lines
-					p.lyricsLoaded = true
-				}
-			})
-		}()
-	}
+		}
+		if err != nil && t.LocalPath != "" {
+			if b, e := os.ReadFile(strings.TrimSuffix(t.LocalPath, filepath.Ext(t.LocalPath)) + ".lrc"); e == nil {
+				lines = lyrics.Build(string(b), "", "")
+			}
+		}
+		p.post(func() {
+			if gen == p.gen {
+				p.lyrics = lines
+				p.lyricsLoaded = true
+			}
+		})
+	}()
 	go func() {
 		info, s, err := p.openContext(ctx, t, level)
 		p.post(func() {
@@ -790,6 +815,11 @@ func (p *Player) open(t netease.Track, level string) (*netease.Stream, stream, e
 }
 
 var songURL = netease.SongURLContext
+
+// lyricsOf fetches a song's lyrics; tests keep it off the network.
+var lyricsOf = netease.Lyrics
+
+var errNoLyrics = errors.New("player: no lyrics")
 
 func (p *Player) openContext(ctx context.Context, t netease.Track, level string) (*netease.Stream, stream, error) {
 	if err := ctx.Err(); err != nil {

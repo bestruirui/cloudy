@@ -96,7 +96,7 @@ func (a *app) dailyCard(c *ui.Context, now time.Time) {
 		ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).PassThrough().Draw(func(p *ui.Painter, r ui.Rect) {
 			spin := &a.dailySpin
 			if spin.step(p.Now(), turn) {
-				p.AnimationFrameRate(dailyRate)
+				p.AnimationFrameRate(motionFPS)
 			}
 			// Where the record turns: at the right, in its sleeve's stack.
 			cx := r.X + r.W - dailyPadX - 120
@@ -147,12 +147,6 @@ const (
 	recordSize  = 146
 )
 
-// dailyRate is how many frames a second the daily card draws what moves
-// on it, its record turning and the bars on its play button: every frame
-// of a 120 Hz display, it redrew the whole card 120 times a second, for
-// motion that looks as smooth at half of that; at a quarter, the record's
-// label steps.
-const dailyRate = 60
 
 // recordOut is how far right of its sleeve's middle the record's is, as
 // far out as out.
@@ -324,7 +318,7 @@ func (a *app) dailyPlayButton(c *ui.Context, songs []netease.Track, ours, playin
 				a.dailyBars.step(p.Now(), lv, live)
 				drawBars(p, r, &a.dailyBars, 4, accent, 2.5)
 				if live || a.dailyBars.group(0, player.Bands) > 0.01 {
-					p.AnimationFrameRate(dailyRate)
+					p.AnimationFrameRate(motionFPS)
 				}
 			})
 		} else {

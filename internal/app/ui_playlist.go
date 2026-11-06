@@ -256,6 +256,16 @@ func (a *app) listTools(c *ui.Context, tracks, shown []netease.Track) {
 			line = fmt.Sprintf("找到 %d 首", len(shown))
 		}
 		ui.Text(c, line).FontSize(12.5).TextColor(p.muted).Grow(1).Shrink(1).MinWidth(0).SingleLine()
+		// Back to the song playing, when it is in the list: scrolled far
+		// from it, there was no way back but scrolling.
+		if cur := a.pl.Current(); cur != nil {
+			if i := slices.IndexFunc(shown, func(t netease.Track) bool { return t.ID == cur.ID }); i >= 0 {
+				if iconButton(c.Key("locate"), iconLocate, 15, p.muted, "定位到正在播放").Size(32, 32).Clicked() {
+					// The list's first row is the header.
+					a.trackList.ScrollTo(i+1, ui.Center)
+				}
+			}
+		}
 		field := ui.Row(c).Width(210).Height(32).PaddingX(12).Gap(7).Radius(999).AlignItems(ui.Center)
 		if c.Focused(a.filterBox) {
 			field.Background(p.bg).Shadow(0, 0, 0, 3, p.accent.Alpha(0.25)).Border(1, p.accent.Alpha(0.6))

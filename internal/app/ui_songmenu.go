@@ -1,6 +1,8 @@
 package app
 
 import (
+	"fmt"
+
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui"
@@ -16,27 +18,37 @@ var copyText = func(text string) error { return mygo.Clipboard.Write(transfer.Te
 // or album's, and, signed in, adding it to a playlist or taking it out of
 // pid, the playlist it is listed in, if set.
 func (a *app) songActions(tr *netease.Track, pid int64) [][]menuAction {
-	if tr.LocalPath != "" {
+	// A file put in the folder by hand is no NetEase song: only its file
+	// can be acted on. A downloaded song is still one, with its file too.
+	if tr.LocalPath != "" && tr.ID <= 0 {
 		return a.downloadedSongActions(tr)
-	}
-	if tr.ProgramID != 0 {
-		return a.programActions(tr)
 	}
 	// The list can move under the menu; the song it names cannot.
 	song := *tr
+	next := menuAction{label: "下一首播放", icon: iconNext, do: func() { a.playNext([]netease.Track{song}) }}
+	if tr.ProgramID != 0 {
+		return append([][]menuAction{{next}}, a.programActions(tr)...)
+	}
 	a.loadDownloads(false)
 	save := menuAction{label: "下载到本机", icon: iconDownload, do: func() { a.startDownload(song) }}
-	if a.downloaded(tr.ID) {
+	if tr.LocalPath != "" || a.downloaded(tr.ID) {
 		save = menuAction{label: "从本地删除", icon: iconTrash, do: func() { a.confirmDeleteDownload(song) }}
 	}
 	groups := [][]menuAction{
+		{next},
 		{
 			{label: "复制歌名", icon: iconCopy, do: func() { copyText(tr.Name) }},
 			{label: "复制歌名和歌手", icon: iconCopy, do: func() { copyText(tr.Name + " - " + tr.ArtistNames()) }},
+			{label: "复制链接", icon: iconLink, do: func() { copyText(tr.URL()) }},
 		},
-		{save},
-		{{label: "复制链接", icon: iconLink, do: func() { copyText(tr.URL()) }}},
 	}
+	if tr.LocalPath != "" {
+		groups = append(groups, []menuAction{
+			{label: "在文件夹中显示", icon: iconFolder, do: func() { mygo.Shell.ShowItemInFolder(song.LocalPath) }},
+			{label: "复制文件路径", icon: iconCopy, do: func() { copyText(song.LocalPath) }},
+		})
+	}
+	groups = append(groups, []menuAction{save})
 	// Its artists' and album's pages, those NetEase has.
 	var pages []menuAction
 	for _, ar := range tr.Artists {
@@ -56,6 +68,20 @@ func (a *app) songActions(tr *netease.Track, pid int64) [][]menuAction {
 		groups = append(groups, lists)
 	}
 	return groups
+}
+
+// playNext puts tracks right after the song playing, and says so.
+func (a *app) playNext(tracks []netease.Track) {
+	n := a.pl.PlayNext(tracks)
+	switch {
+	case n == 0:
+		a.toast = "已经是下一首了"
+	case n == 1:
+		a.toast = "下一首播放：" + tracks[0].Name
+	default:
+		a.toast = fmt.Sprintf("已安排 %d 首在下一首播放", n)
+	}
+	a.redraw()
 }
 
 // programActions lists what can be done with an episode: copying its title

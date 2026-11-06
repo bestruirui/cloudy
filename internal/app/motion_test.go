@@ -14,7 +14,7 @@ import (
 	"netease-music-mygo/internal/netease"
 )
 
-const motionFrame = 16 * time.Millisecond
+const testFrame = 16 * time.Millisecond
 
 // markArt is a cover of a color nothing else has, to find it in a frame.
 func markArt(a *app, url string, px int) {
@@ -93,7 +93,7 @@ func watchCover(t *testing.T, a *app, tt *ui.Tester, frames int, at func(i int))
 			f = "F"
 		}
 		t.Logf("%3d ms %s  x %7.1f  y %7.1f  area %6d", i*16, f, m.x, m.y, m.area)
-		tt.Advance(motionFrame)
+		tt.Advance(testFrame)
 	}
 	return marks
 }
@@ -199,7 +199,7 @@ func TestOtherMotionFrames(t *testing.T) {
 		s.do(a)
 		line := ""
 		for i := 0; i < 36; i++ {
-			tt.Advance(motionFrame)
+			tt.Advance(testFrame)
 			tt.Frame()
 			now := grab(tt)
 			line += " " + itoa(frameDiff(now, last))
@@ -303,7 +303,7 @@ func TestNowPlayingCoverGoesAndComesBack(t *testing.T) {
 		if i == 45 {
 			a.nowPlaying = false
 		}
-		tt.Advance(motionFrame)
+		tt.Advance(testFrame)
 		tt.Frame()
 		m := findMark(tt.Image(), s)
 		if m.area < rest.area*8/10 {
@@ -333,7 +333,7 @@ func TestDialogComesAndGoes(t *testing.T) {
 	moves := func() int {
 		n, last := 0, grab(tt)
 		for range 30 {
-			tt.Advance(motionFrame)
+			tt.Advance(testFrame)
 			tt.Frame()
 			now := grab(tt)
 			if frameDiff(now, last) > 30 {

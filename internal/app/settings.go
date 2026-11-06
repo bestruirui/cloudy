@@ -125,12 +125,29 @@ type settings struct {
 	DownloadFolder string `json:"downloadFolder,omitempty"`
 	// SearchHistory keeps submitted keywords, most recent first.
 	SearchHistory []string `json:"searchHistory,omitempty"`
+	// FrameRate is how many frames a second what moves on its own is drawn
+	// at: the turning cover, the fog, the lyrics lighting up word by word;
+	// 0 for 60, frameRateDisplay for each of the display's refreshes.
+	FrameRate int `json:"frameRate,omitempty"`
+	// LyricTrans shows the translation under each line of lyrics. Off is
+	// kept too.
+	LyricTrans bool `json:"lyricTrans"`
+	// DownloadQuality is the level songs download at; empty for Quality.
+	DownloadQuality string `json:"downloadQuality,omitempty"`
+	// StartHidden opens the app to the tray, its window hidden, when it
+	// starts as the listener logs in.
+	StartHidden bool `json:"startHidden,omitempty"`
+	// PodcastSpeed is how fast episodes play, their pitch kept: 0 for 1.
+	PodcastSpeed float64 `json:"podcastSpeed,omitempty"`
+	// OutputDevice is the endpoint ID of the output music plays through;
+	// empty for the system's default, which it follows.
+	OutputDevice string `json:"outputDevice,omitempty"`
 
 	path string // where they were loaded from, and are saved to
 }
 
 func defaultSettings() settings {
-	return settings{UpdateChecks: true, BarSpin: true, GlobalKeys: true, NotchActivity: true, Quality: "exhigh", Appearance: "system", LiquidGlass: true, NpLight: true, GlowLevel: 0.5, GlassClear: 0.6, GlassBend: 0.3, GlassPanels: true, Volume: 0.8, Normalize: true, AppIcon: "dock-and-menubar", CacheMB: 2048, Captions: true}
+	return settings{UpdateChecks: true, BarSpin: true, GlobalKeys: true, NotchActivity: true, Quality: "exhigh", Appearance: "system", LiquidGlass: true, NpLight: true, GlowLevel: 0.5, GlassClear: 0.6, GlassBend: 0.3, GlassPanels: true, Volume: 0.8, Normalize: true, AppIcon: "dock-and-menubar", CacheMB: 2048, Captions: true, LyricTrans: true}
 }
 
 func settingsPath() (string, error) {

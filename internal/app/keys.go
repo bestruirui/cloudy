@@ -102,16 +102,22 @@ var sleepChoices = []struct {
 	{"45 分钟后", 45},
 	{"60 分钟后", 60},
 	{"90 分钟后", 90},
+	{"播完当前歌曲", sleepAfterSong},
 }
 
-// setSleep pauses the music after so many minutes, none to not.
+// sleepAfterSong is the choice that pauses as the song playing ends.
+const sleepAfterSong = -1
+
+// setSleep pauses the music after so many minutes, none to not, or as the
+// song playing ends for sleepAfterSong.
 func (a *app) setSleep(minutes int) {
 	if a.sleepTimer != nil {
 		a.sleepTimer.Stop()
 		a.sleepTimer = nil
 	}
 	a.sleepMinutes, a.sleepAt = minutes, time.Time{}
-	if minutes == 0 {
+	a.pl.StopAfterSong = minutes == sleepAfterSong
+	if minutes <= 0 {
 		return
 	}
 	d := time.Duration(minutes) * time.Minute
@@ -131,6 +137,9 @@ func (a *app) sleepNow() {
 // sleepRow lets the listener choose when the music stops, and says when.
 func (a *app) sleepRow(c *ui.Context, row func(string, string, func())) {
 	desc := "到时间后暂停播放，声音会慢慢淡出；重新打开软件后需要再设置"
+	if a.sleepMinutes == sleepAfterSong {
+		desc = "当前这首播完后暂停播放"
+	}
 	if !a.sleepAt.IsZero() {
 		left := time.Until(a.sleepAt)
 		desc = "还有 " + longTime(left.Round(time.Minute)) + "后暂停播放"

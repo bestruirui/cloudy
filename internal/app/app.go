@@ -123,6 +123,7 @@ type app struct {
 	lyricTrack  int64
 	queueList   ui.ListState
 	queueAt     int // the row of the queue pane last scrolled to, -1 while it is hidden
+	loginKnown  *bool // whether the app starts at login, once asked
 	comments    commentState
 	tabCount    rollState // the count on the comments' tab, as it rolls
 
@@ -289,6 +290,7 @@ func Run() error {
 	a.useUpdater()
 	mygo.App.WhenReady(func() {
 		a.settings = loadSettings()
+		setFrameRate(a.settings.FrameRate)
 		a.settings.applyAppearance()
 		a.loadFont()
 		a.npPane = a.lyricsPaneChosen()
@@ -299,6 +301,10 @@ func Run() error {
 		a.pl.Quality = func() string { return a.settings.Quality }
 		a.pl.Normalize = func() bool { return a.settings.Normalize }
 		a.pl.Cache = newSongCache(a.settings.CacheMB)
+		a.pl.SongStopped = func() {
+			a.sleepMinutes = 0
+			a.toast = "定时结束，本首播完后已暂停"
+		}
 		a.pl.Changed = func() {
 			a.keepSession()
 			a.syncCaptions()
@@ -321,6 +327,8 @@ func Run() error {
 			Vibrancy:             mygo.VibrancySidebar,
 			BackgroundColor:      "light-dark(#ffffff, #141416)",
 			Content:              ui.View(a.view),
+			// Started at login, as the listener asked: to the tray.
+			Hidden: a.startsHidden(),
 		})
 		a.setMenu()
 		a.boot()
