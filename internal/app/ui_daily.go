@@ -503,6 +503,7 @@ func (a *app) dailyPage(c *ui.Context) {
 						}
 						a.pl.PlayQueue(songs, firstPlayable(songs))
 					}
+					a.batchEntry(c)
 				})
 			})
 		})

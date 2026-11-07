@@ -1,7 +1,6 @@
 package app
 
 import (
-	"strconv"
 	"strings"
 	"time"
 
@@ -27,24 +26,24 @@ func (a *app) shortcutDisplay(act shortcutAction) string {
 	custom := strings.TrimSpace(a.settings.Shortcuts[act.id])
 	if !a.settings.GlobalKeys {
 		if custom != "" {
-			return custom
+			return keyLabel(custom)
 		}
 		if len(act.keys) > 0 {
-			return act.keys[0]
+			return keyLabel(act.keys[0])
 		}
 		return "未设置"
 	}
 	if custom != "" {
 		if a.shortcutKeys[act.id] == "" {
-			return custom + "（未注册）"
+			return keyLabel(custom) + "（未注册）"
 		}
-		return custom
+		return keyLabel(custom)
 	}
 	if key := a.shortcutKeys[act.id]; key != "" {
-		return key
+		return keyLabel(key)
 	}
 	if len(act.keys) > 0 {
-		return act.keys[0] + "（默认，未注册）"
+		return keyLabel(act.keys[0]) + "（默认，未注册）"
 	}
 	return "未设置"
 }
@@ -53,11 +52,13 @@ func shortcutDefaults(act shortcutAction) string {
 	if len(act.keys) == 0 {
 		return "默认未设置"
 	}
-	text := "默认 " + act.keys[0]
-	if len(act.keys) > 1 {
-		text += "（" + strconv.Itoa(len(act.keys)) + " 组）"
+	// Each default, in the order tried: the next where another app holds
+	// the one before.
+	labels := make([]string, len(act.keys))
+	for i, k := range act.keys {
+		labels[i] = keyLabel(k)
 	}
-	return text
+	return "默认 " + strings.Join(labels, " / ")
 }
 
 // shortcutEditorDialog lists the global actions and records a new key for
@@ -118,7 +119,7 @@ func (a *app) shortcutEditorDialog(c *ui.Context) {
 							if recording {
 								label = "取消"
 							}
-							if ui.Button(c.Key("record-"+act.id), label).Width(80).Clicked() {
+							if pillButton(c.Key("record-"+act.id), nil, label, ink.hover, ink.text).Width(80).Justify(ui.Center).Clicked() {
 								if recording {
 									s.recording, s.err = "", ""
 								} else {
@@ -134,7 +135,7 @@ func (a *app) shortcutEditorDialog(c *ui.Context) {
 					ui.Text(c, s.err).FontSize(12).TextColor(ink.muted)
 				}
 				ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-					if ui.Button(c.Key("shortcut-reset"), "恢复默认").Clicked() {
+					if pillButton(c.Key("shortcut-reset"), iconReload, "恢复默认", ink.hover, ink.text).Clicked() {
 						a.settings.Shortcuts = nil
 						a.settings.save()
 						a.applyGlobalKeys()
@@ -143,7 +144,7 @@ func (a *app) shortcutEditorDialog(c *ui.Context) {
 						a.redraw()
 					}
 					ui.Spacer(c)
-					if ui.PrimaryButton(c.Key("shortcut-done"), "完成").Clicked() {
+					if pillButton(c.Key("shortcut-done"), iconCheck, "完成", a.pal.accent, a.pal.onAccent).Clicked() {
 						s.open = false
 					}
 				})
@@ -193,6 +194,16 @@ func (a *app) recordShortcut(ev ui.InputEvent) bool {
 			return true
 		}
 	}
+	// Held by another app (NetEase's own player holds Ctrl+Alt+M), it would
+	// not work: the listener learns it now, not after saving.
+	if a.settings.GlobalKeys && !strings.EqualFold(a.shortcutKeys[act.id], keys) {
+		if err := registerShortcut(keys, func() {}); err != nil {
+			s.err = "「" + keyLabel(keys) + "」已被其他软件占用，请换一个组合键"
+			a.redraw()
+			return true
+		}
+		unregisterShortcut(keys)
+	}
 	if a.settings.Shortcuts == nil {
 		a.settings.Shortcuts = map[string]string{}
 	}
@@ -206,7 +217,7 @@ func (a *app) recordShortcut(ev ui.InputEvent) bool {
 	case a.shortcutKeys[act.id] == "":
 		a.toast = "已保存，但组合键被其他软件占用"
 	default:
-		a.toast = "已设置 " + act.label + "：" + keys
+		a.toast = "已设置 " + act.label + "：" + keyLabel(keys)
 	}
 	a.redraw()
 	return true
@@ -259,4 +270,23 @@ func shortcutFromEvent(ev ui.InputEvent) (string, bool) {
 		return name, true
 	}
 	return strings.Join(mods, "+") + "+" + name, true
+}
+
+// keyLabel shows a combination as the settings and menus write keys: the
+// arrows as arrows, the rest as they are named.
+func keyLabel(acc string) string {
+	parts := strings.Split(acc, "+")
+	for i, p := range parts {
+		switch p {
+		case "Left":
+			parts[i] = "←"
+		case "Right":
+			parts[i] = "→"
+		case "Up":
+			parts[i] = "↑"
+		case "Down":
+			parts[i] = "↓"
+		}
+	}
+	return strings.Join(parts, "+")
 }

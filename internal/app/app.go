@@ -28,6 +28,7 @@ const (
 	pagePodcast
 	pagePodcasts
 	pageDownloads
+	pageRecent
 )
 
 type route struct {
@@ -124,6 +125,8 @@ type app struct {
 	queueList   ui.ListState
 	queueAt     int // the row of the queue pane last scrolled to, -1 while it is hidden
 	loginKnown  *bool // whether the app starts at login, once asked
+	shownTracks []netease.Track // the songs the page lists now, for choosing among them
+	recent      recentState     // the songs played lately
 	outputList  outputList // the audio outputs, as last listed
 	comments    commentState
 	tabCount    rollState // the count on the comments' tab, as it rolls

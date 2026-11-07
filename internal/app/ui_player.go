@@ -514,6 +514,14 @@ func (a *app) playerBar(c *ui.Context) {
 			a.transport(c, p.text, muted, p.accent, 18)
 			a.playFlies = nil
 			a.barSpot.play = a.playSpot
+			if tr == nil {
+				// Nothing to show the progress of: what to do, where the
+				// times and an empty bar said 0:00 of nothing.
+				ui.Row(c).Height(14).Margin(-4, 0, 0, 0).Justify(ui.Center).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, "从左侧挑一张歌单，或搜索一首歌开始播放").FontSize(10.5).TextColor(faint).SingleLine()
+				})
+				return
+			}
 			ui.Row(c).Gap(10).AlignItems(ui.Center).Margin(-4, 0, 0, 0).Children(func() {
 				ui.Text(c, clock(pl.Position())).FontSize(10.5).FontFeatures("tnum").TextColor(faint).Width(34).TextAlign(ui.End)
 				scrub := a.scrubber(c.Key("bar-scrub"), &a.barScrub, track, p.text.Alpha(0.75), 14, p.accent).Grow(1)

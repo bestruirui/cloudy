@@ -54,6 +54,7 @@ func (a *app) signedIn(prof *netease.Profile) {
 	a.restoreSession()
 	a.restoreDownloadQueue()
 	a.mine, a.saved, a.recPlaylists, a.liked = nil, nil, nil, nil
+	a.recent = recentState{}
 	a.myAlbums, a.myAlbumsErr, a.myAlbumsBusy = nil, "", false
 	a.likedPrograms, a.askedPrograms = nil, nil
 	// What the listener may play, and follows, changed: load the pages

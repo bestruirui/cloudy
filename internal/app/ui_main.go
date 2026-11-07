@@ -149,9 +149,12 @@ func (a *app) open(r route) {
 func (a *app) show(r route) {
 	if a.batch.on {
 		keep := false
-		if a.batch.downloads {
+		switch {
+		case a.batch.songs:
+			keep = r == a.batch.at
+		case a.batch.downloads:
 			keep = r.page == pageDownloads
-		} else {
+		default:
 			keep = r.page == pagePlaylist && r.id == a.batch.playlist
 		}
 		if !keep {
@@ -187,6 +190,8 @@ func (a *app) load(r route) {
 		a.loadPodcastTab()
 	case pageDownloads:
 		a.loadDownloads(false)
+	case pageRecent:
+		a.loadRecent(false)
 	}
 }
 
@@ -242,6 +247,9 @@ func (a *app) sidebar(c *ui.Context) {
 				a.navItem(c, iconCharts, "排行榜", route{page: pageCharts})
 				a.navItem(c, iconPodcast, "播客", route{page: pagePodcasts})
 				a.navItem(c, iconDownload, "下载歌曲", route{page: pageDownloads})
+				if a.profile != nil {
+					a.navItem(c, iconHistory, "最近播放", route{page: pageRecent})
+				}
 				if a.searched.query != "" {
 					a.navItem(c, iconSearch, "搜索结果", a.searched)
 				}
@@ -457,6 +465,8 @@ func (a *app) content(c *ui.Context) {
 			a.podcastsPage(c)
 		case pageDownloads:
 			a.downloadsPage(c)
+		case pageRecent:
+			a.recentPage(c)
 		}
 	})
 }

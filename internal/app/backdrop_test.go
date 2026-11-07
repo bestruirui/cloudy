@@ -21,7 +21,9 @@ func TestBackdropDrifts(t *testing.T) {
 	var bd backdropCache
 	now := time.Unix(0, 0)
 	var quiet [player.Bands]float32
-	for range 120 {
+	// Four seconds of frames, at whatever rate they are drawn.
+	steps := int(4 * time.Second / backdropFrame())
+	for range steps {
 		now = now.Add(backdropFrame())
 		bd.step(now, true, quiet, true)
 	}
@@ -38,7 +40,7 @@ func TestBackdropDrifts(t *testing.T) {
 		t.Errorf("bass %v on a beat", bd.level.group(0, 6))
 	}
 	moving := true
-	for range 120 {
+	for range steps {
 		now = now.Add(backdropFrame())
 		moving = bd.step(now, false, quiet, false)
 	}

@@ -1,6 +1,8 @@
 package app
 
 import (
+	"time"
+
 	"github.com/egoist/mygo/ui"
 
 	"netease-music-mygo/internal/download"
@@ -19,6 +21,11 @@ func newTestApp() *app {
 	a.pl = player.New(func(func()) {})
 	a.pl.SetVolume(0.5)
 	tagDownload = func(download.Item) {}
+	// The system is not asked, as no app runs: starting at login is off,
+	// and the outputs are none.
+	off := false
+	a.loginKnown = &off
+	a.outputList.at = time.Now().Add(24 * time.Hour)
 	return a
 }
 

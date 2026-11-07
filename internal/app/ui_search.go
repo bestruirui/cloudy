@@ -189,7 +189,7 @@ func (a *app) searchHeader(c *ui.Context, d *searchData) {
 		}
 	}
 	a.heading(c, "“"+r.query+"”", sub)
-	ui.Row(c).Margin(0, 0, 18, 0).Children(func() {
+	ui.Row(c).Margin(0, 0, 18, 0).AlignItems(ui.Center).Children(func() {
 		labels := make([]string, len(searchKinds))
 		for i, k := range searchKinds {
 			labels[i] = k.label
@@ -197,6 +197,10 @@ func (a *app) searchHeader(c *ui.Context, d *searchData) {
 		if a.segmented(c.Key("kind"), &at, labels...) {
 			r.kind = searchKinds[at].kind
 			a.show(r)
+		}
+		if r.kind == netease.SearchSongs && len(d.res.Songs) > 0 {
+			ui.Spacer(c)
+			a.batchEntry(c)
 		}
 	})
 }

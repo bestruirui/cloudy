@@ -43,7 +43,7 @@ func TestDownloadQueueWindow(t *testing.T) {
 	if chosen := a.downloadQueueChosen(a.downloadQueueEntries()); chosen != 3 {
 		t.Fatalf("chosen %d", chosen)
 	}
-	if err := tt.Click("取消选中"); err != nil {
+	if err := tt.Click("取消所选下载"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()

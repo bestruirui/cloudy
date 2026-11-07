@@ -266,6 +266,10 @@ func (a *app) listTools(c *ui.Context, tracks, shown []netease.Track) {
 				}
 			}
 		}
+		// A playlist's and the downloads' own menus start theirs.
+		if pg := a.route.page; pg != pagePlaylist && pg != pageDownloads {
+			a.batchEntry(c)
+		}
 		field := ui.Row(c).Width(210).Height(32).PaddingX(12).Gap(7).Radius(999).AlignItems(ui.Center)
 		if c.Focused(a.filterBox) {
 			field.Background(p.bg).Shadow(0, 0, 0, 3, p.accent.Alpha(0.25)).Border(1, p.accent.Alpha(0.6))

@@ -358,6 +358,7 @@ func (a *app) playlistHeader(c *ui.Context, pl *netease.Playlist) {
 // plays the list from the track clicked.
 func (a *app) trackRows(c *ui.Context, tracks []netease.Track, covers bool, header func(c *ui.Context), footer ...func(c *ui.Context)) {
 	p := a.pal
+	a.shownTracks = tracks
 	batch := a.rowsBatchActive()
 	cur := a.pl.Current()
 	// A song's menu can take it out of the playlist it is listed in.
