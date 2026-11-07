@@ -119,7 +119,7 @@ func (a *app) shortcutEditorDialog(c *ui.Context) {
 							if recording {
 								label = "取消"
 							}
-							if pillButton(c.Key("record-"+act.id), nil, label, ink.hover, ink.text).Width(80).Justify(ui.Center).Clicked() {
+							if pillButton(c.Key("record-"+act.id), nil, label, ink.text.Alpha(0.08), ink.text).Width(80).Justify(ui.Center).Clicked() {
 								if recording {
 									s.recording, s.err = "", ""
 								} else {
@@ -135,7 +135,7 @@ func (a *app) shortcutEditorDialog(c *ui.Context) {
 					ui.Text(c, s.err).FontSize(12).TextColor(ink.muted)
 				}
 				ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-					if pillButton(c.Key("shortcut-reset"), iconReload, "恢复默认", ink.hover, ink.text).Clicked() {
+					if pillButton(c.Key("shortcut-reset"), iconReload, "恢复默认", ink.text.Alpha(0.08), ink.text).Clicked() {
 						a.settings.Shortcuts = nil
 						a.settings.save()
 						a.applyGlobalKeys()

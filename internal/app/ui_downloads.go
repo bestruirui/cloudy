@@ -97,21 +97,22 @@ func (a *app) downloadsHeader(c *ui.Context) {
 					if pillButton(c.Key("queue"), iconQueue, queueLabel, p.hover.Over(p.bg), p.text).Clicked() {
 						a.openDownloadQueue()
 					}
-					if len(a.downloads) > 0 {
-						if pillButton(c.Key("batch-delete"), iconTrash, "批量删除", p.hover.Over(p.bg), p.text).Clicked() {
-							a.startDownloadBatch()
-						}
-					}
-					// What is done seldom: as a playlist keeps its own.
+					// What is done seldom, as a playlist keeps its own: the
+					// row stays one line in a window of the least width.
 					more := iconButton(c.Key("more"), iconMore, 18, p.muted, "更多").Size(36, 36)
 					if more.Clicked() {
-						a.menuBelow(more, false, [][]menuAction{{
+						var groups [][]menuAction
+						if len(a.downloads) > 0 {
+							groups = append(groups, []menuAction{{label: "批量删除", icon: iconTrash, do: a.startDownloadBatch}})
+						}
+						groups = append(groups, []menuAction{
 							{label: "更换文件夹…", icon: iconFolderSwap, do: a.pickDownloadFolder},
 							{label: "重新扫描", icon: iconReload, do: func() {
 								a.loadDownloads(true)
 								a.toast = "已重新读取下载歌曲"
 							}},
-						}}, nil)
+						})
+						a.menuBelow(more, false, groups, nil)
 					}
 				})
 			}

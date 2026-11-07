@@ -435,7 +435,15 @@ func (a *app) playerBar(c *ui.Context) {
 	// The controls keep the middle, between sides that share what is left:
 	// narrower, the middle gives up to 140 DIPs, and what plays keeps room
 	// for its cover, some of its title and its heart.
-	const controls = 6*32 + 5*4 // the floating windows, translation, adding to a playlist, the speaker and the details
+	// A window of the least width has room for four of the six buttons on the
+	// right: the floating windows give way, which the tray and the settings
+	// open too.
+	ww, _ := c.Size()
+	roomy := ww >= 1100
+	controls := float32(4*32 + 3*4) // translation, adding to a playlist, the speaker and the details
+	if roomy {
+		controls = 6*32 + 5*4 // and the floating windows
+	}
 	bar := ui.Row(c).Absolute().Gap(20).AlignItems(ui.Center)
 	a.barBox = bar.LayoutBounds()
 	if liquid {
@@ -509,7 +517,11 @@ func (a *app) playerBar(c *ui.Context) {
 		})
 
 		// Controls over the progress.
-		ui.Column(c).Width(440).Shrink(1).MinWidth(300).Gap(0).AlignItems(ui.Stretch).Children(func() {
+		middle := float32(300)
+		if !roomy {
+			middle = 240
+		}
+		ui.Column(c).Width(440).Shrink(1).MinWidth(middle).Gap(0).AlignItems(ui.Stretch).Children(func() {
 			a.playFlies = a.lifted
 			a.transport(c, p.text, muted, p.accent, 18)
 			a.playFlies = nil
@@ -538,11 +550,13 @@ func (a *app) playerBar(c *ui.Context) {
 			if a.settings.DeskLyrics {
 				desk = p.accent
 			}
-			if iconButton(c.Key("desk-lyrics"), iconSubtitles, 16, desk, "桌面歌词").Clicked() {
-				a.toggleDeskLyrics()
-			}
-			if iconButton(c.Key("mini"), iconMiniWin, 16, muted, "迷你窗口").Clicked() {
-				a.showMini()
+			if roomy {
+				if iconButton(c.Key("desk-lyrics"), iconSubtitles, 16, desk, "桌面歌词").Clicked() {
+					a.toggleDeskLyrics()
+				}
+				if iconButton(c.Key("mini"), iconMiniWin, 16, muted, "迷你窗口").Clicked() {
+					a.showMini()
+				}
 			}
 			// The song's translation under each line of its lyrics, lit
 			// while it shows: Now Playing's and the desktop lyrics'.

@@ -1,6 +1,8 @@
 package app
 
 import (
+	"time"
+
 	"errors"
 	"fmt"
 	"image/png"
@@ -161,6 +163,9 @@ func TestShortcutEditorFrames(t *testing.T) {
 				tt := ui.NewTester(a.view, size.w, size.h)
 				tt.SetDark(dark)
 				tt.SetPreferences(ui.Preferences{ReduceMotion: true})
+				tt.Frame()
+				// Once what fades in has.
+				tt.Advance(time.Second)
 				tt.Frame()
 				name := fmt.Sprintf("shortcuts-%d-%t-%t.png", size.w, dark, off)
 				f, err := os.Create(filepath.Join(dir, name))

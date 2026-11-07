@@ -289,7 +289,7 @@ func TestDownloadsBatchDelete(t *testing.T) {
 	a.open(route{page: pageDownloads})
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
-	if err := tt.Click("批量删除"); err != nil {
+	if err := chooseItem(tt, "更多", "批量删除"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()

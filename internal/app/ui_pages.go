@@ -294,7 +294,7 @@ func (a *app) playlistHeader(c *ui.Context, pl *netease.Playlist) {
 				a.playlistSays(c, strings.ReplaceAll(d, "\n", " "))
 			}
 			if a.batchActive(pl.ID) {
-				hint := "选择歌曲，完成后在下方选择下载、收藏或加入队列"
+				hint := "选择歌曲，完成后在下方选择下载、喜欢、下一首播放或加入队列"
 				if pl.SpecialType == 5 {
 					hint = "选择歌曲，完成后在下方选择下载、取消喜欢或加入队列"
 				}
