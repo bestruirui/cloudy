@@ -63,3 +63,41 @@ func TestEffects(t *testing.T) {
 		}
 	}
 }
+
+// The voice, in the middle, comes forward against the sides; evened out,
+// a quiet passage comes up and a loud one stays under full scale.
+func TestVocalAndLoudness(t *testing.T) {
+	vocal := Effects{On: true, Vocal: 1}
+	if r := energy(t, 2800, &vocal) / energy(t, 2800, nil); r < 1.5 {
+		t.Errorf("a voice at 2.8 kHz came up %.2f×", r)
+	}
+	quiet := &tone{hz: 440, rate: 44100, frames: 44100}
+	loud := Effects{On: true, Loudness: 1}
+	var fx atomic.Pointer[Effects]
+	fx.Store(&loud)
+	// A tone at a tenth of full scale, about -26 dBFS RMS.
+	s := newShaper(&scaled{quiet, 0.2}, &fx)
+	buf := make([]float32, 2*44100)
+	n, _ := s.Read(buf)
+	peak := float32(0)
+	for _, v := range buf[n/2 : n] {
+		peak = max(peak, v, -v)
+	}
+	if peak < 0.15 || peak > 1 {
+		t.Errorf("a quiet tone evened out peaks at %v, was 0.1", peak)
+	}
+}
+
+// scaled is a decoder at k of its loudness.
+type scaled struct {
+	*tone
+	k float32
+}
+
+func (s *scaled) Read(dst []float32) (int, error) {
+	n, err := s.tone.Read(dst)
+	for i := range dst[:n] {
+		dst[i] *= s.k
+	}
+	return n, err
+}

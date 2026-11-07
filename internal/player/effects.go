@@ -16,6 +16,11 @@ type Effects struct {
 	Bands [len(EffectBands)]float64 // gain in dB, of each of EffectBands
 	Bass  float64                   // 0 to 1: up to 9 dB under 100 Hz
 	Width float64                   // 0 to 1: the sides up to twice as wide
+	// Vocal lifts what sits in the middle, the voice, where it is heard
+	// clearly, 0 to 1; Loudness evens out what is loud and what is quiet,
+	// 0 to 1, as a compressor does.
+	Vocal    float64
+	Loudness float64
 }
 
 // EffectBands are the middles of the equalizer's bands, in Hz, an octave
@@ -85,11 +90,15 @@ const bassGain = 9
 // shaper applies the effects to a decoder's sound as it is read.
 type shaper struct {
 	audio.Decoder
-	fx      *atomic.Pointer[Effects]
-	applied Effects
-	filters []biquad
-	state   [][2]biquadState
-	pre     float64 // the gain before, that leaves room for what is lifted
+	fx              *atomic.Pointer[Effects]
+	applied         Effects
+	filters         []biquad
+	state           [][2]biquadState
+	pre             float64 // the gain before, that leaves room for what is lifted
+	vocal           biquad  // the voice lifted, in the middle only
+	voice           biquadState
+	env             float64 // how loud the sound is now, for the compressor
+	attack, release float64
 }
 
 func newShaper(d audio.Decoder, fx *atomic.Pointer[Effects]) *shaper {
@@ -113,11 +122,32 @@ func (s *shaper) tune(e Effects) {
 		s.filters = append(s.filters, lowShelf(rate, 100, g))
 		most = max(most, g+max(e.Bands[0], e.Bands[1], 0))
 	}
+	if e.Vocal > 0 {
+		// Presence, where a voice is understood: in the middle of the
+		// stereo, where a voice is mixed, not the instruments at the sides.
+		s.vocal = peaking(rate, 2800, e.Vocal*vocalGain)
+		most = max(most, e.Vocal*vocalGain*0.5)
+	}
 	// What is lifted could clip: the whole comes down as far as the most
 	// lifted, a little less, for music seldom fills every band at once.
 	s.pre = math.Pow(10, -most*0.8/20)
 	s.state = make([][2]biquadState, len(s.filters))
+	// The compressor follows the sound within 5 ms as it gets louder, and
+	// lets go over a quarter of a second as it gets quieter.
+	s.attack = 1 - math.Exp(-1/(0.005*rate))
+	s.release = 1 - math.Exp(-1/(0.25*rate))
 }
+
+// vocalGain is the most the voice is lifted, in dB.
+const vocalGain = 6
+
+// The compressor of Loudness: above compressThreshold the sound grows by
+// a quarter of what it would at the most, made up by up to
+// compressMakeup dB, so that quiet passages come up and loud ones down.
+const (
+	compressThreshold = -20.0 // dBFS
+	compressMakeup    = 8.0   // dB
+)
 
 func (s *shaper) Read(dst []float32) (int, error) {
 	n, err := s.Decoder.Read(dst)
@@ -128,7 +158,9 @@ func (s *shaper) Read(dst []float32) (int, error) {
 	if *e != s.applied || s.state == nil {
 		s.tune(*e)
 	}
-	side := 1 + e.Width
+	side := (1 + e.Width) * (1 - 0.3*e.Vocal)
+	ratio := 1 + 3*e.Loudness
+	makeup := math.Pow(10, e.Loudness*compressMakeup/20)
 	for i := 0; i+1 < n; i += 2 {
 		l, r := float64(dst[i])*s.pre, float64(dst[i+1])*s.pre
 		for k := range s.filters {
@@ -136,9 +168,25 @@ func (s *shaper) Read(dst []float32) (int, error) {
 			l = f.run(&s.state[k][0], l)
 			r = f.run(&s.state[k][1], r)
 		}
-		if side != 1 {
+		if side != 1 || e.Vocal > 0 {
 			mid, sd := (l+r)/2, (l-r)/2*side
+			if e.Vocal > 0 {
+				mid = s.vocal.run(&s.voice, mid)
+			}
 			l, r = mid+sd, mid-sd
+		}
+		if e.Loudness > 0 {
+			level := max(math.Abs(l), math.Abs(r))
+			if level > s.env {
+				s.env += s.attack * (level - s.env)
+			} else {
+				s.env += s.release * (level - s.env)
+			}
+			g := makeup
+			if db := 20 * math.Log10(s.env+1e-9); db > compressThreshold {
+				g *= math.Pow(10, (db-compressThreshold)*(1/ratio-1)/20)
+			}
+			l, r = l*g, r*g
 		}
 		dst[i], dst[i+1] = float32(soften(l)), float32(soften(r))
 	}
@@ -163,6 +211,7 @@ func (s *shaper) SetPosition(frame int64) error {
 	for i := range s.state {
 		s.state[i] = [2]biquadState{}
 	}
+	s.voice, s.env = biquadState{}, 0
 	return s.Decoder.SetPosition(frame)
 }
 

@@ -37,6 +37,10 @@ func TestEffectsPane(t *testing.T) {
 	if !e.On || a.settings.EffectsPreset != "rock" || e.Bands[0] != 4 {
 		t.Fatalf("rock: %+v, preset %q", e, a.settings.EffectsPreset)
 	}
+	if err := tt.Click("自定义"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
 	r, ok := tt.Find("1kHz")
 	if !ok {
 		t.Fatal("no 1 kHz band")
@@ -57,23 +61,27 @@ func TestEffectsFrames(t *testing.T) {
 	if dir == "" {
 		t.Skip()
 	}
-	for _, dark := range []bool{false, true} {
-		a := newTestApp()
-		a.settings = defaultSettings()
-		a.usePreset(effectPresets[2])
-		a.settings.Effects.Bands[5] = 3.5
-		a.settings.EffectsPreset = customPreset
-		a.effects.open = true
-		tt := ui.NewTester(a.view, 1180, 780)
-		tt.SetDark(dark)
-		tt.Frame()
-		tt.Advance(time.Second)
-		tt.Frame()
-		f, err := os.Create(filepath.Join(dir, fmt.Sprintf("effects-%t.png", dark)))
-		if err != nil {
-			t.Fatal(err)
+	for i, dark := range []bool{false, true} {
+		for page := range 2 {
+			a := newTestApp()
+			a.settings = defaultSettings()
+			a.usePreset(effectPresets[2])
+			a.settings.Effects.Bands[5] = 3.5
+			a.settings.EffectsPreset = customPreset
+			a.effects.open = true
+			a.effects.page = page
+			tt := ui.NewTester(a.view, 1180, 780)
+			tt.SetDark(dark)
+			tt.Frame()
+			tt.Advance(time.Second)
+			tt.Frame()
+			f, err := os.Create(filepath.Join(dir, fmt.Sprintf("effects-%t-%d.png", dark, page)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			png.Encode(f, tt.Image())
+			f.Close()
 		}
-		png.Encode(f, tt.Image())
-		f.Close()
+		_ = i
 	}
 }

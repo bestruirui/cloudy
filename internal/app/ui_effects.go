@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 
@@ -13,41 +14,49 @@ import (
 // preset to start from, ten bands to shape, the bass and the room. They
 // shape every song, and are kept.
 
-// effectsView is the pane: open or not, and whether what was changed has
-// yet to be heard at once and kept.
+// effectsView is the pane: open or not, which of its pages shows, and
+// whether what was changed has yet to be heard at once and kept.
 type effectsView struct {
 	open  bool
+	page  int // 0 the presets, 1 what the listener shapes
 	dirty bool
 	held  bool // a slider is being dragged, this frame
 }
 
-// effectPreset is a starting point: the bands, the bass and the width.
+// effectPreset is a starting point: the bands, and how much of the bass,
+// the room, the voice and the evening out; and how its card looks, its
+// colors and what it shows.
 type effectPreset struct {
-	id, label string
-	bands     [10]float64
-	bass      float64
-	width     float64
+	id, label, desc string
+	bands           [10]float64
+	bass, width     float64
+	vocal, loud     float64
+	from, to        string // the card's colors, top left to bottom right
+	icon            *ui.SVG
 }
 
 // effectPresets are the presets the pane offers, the first leaving the
 // sound as it is.
 var effectPresets = []effectPreset{
-	{"flat", "原声", [10]float64{}, 0, 0},
-	{"pop", "流行", [10]float64{-1, 0, 1.5, 3, 3.5, 2.5, 1, 0, 1, 1.5}, 0.15, 0.1},
-	{"rock", "摇滚", [10]float64{4, 3, 2, 0, -1.5, -1, 1, 2.5, 3.5, 4}, 0.2, 0.15},
-	{"jazz", "爵士", [10]float64{3, 2, 1, 2, -1, -1, 0, 1, 2, 3}, 0, 0.2},
-	{"classical", "古典", [10]float64{4, 3, 2, 1, -1, -1, 0, 2, 3, 4}, 0, 0.3},
-	{"electronic", "电子", [10]float64{4, 3.5, 1, 0, -2, 1.5, 1, 1, 3, 4}, 0.35, 0.25},
-	{"vocal", "人声", [10]float64{-2, -2, -1, 1, 3, 4, 3.5, 1.5, 0, -1}, 0, 0},
-	{"bass", "重低音", [10]float64{6, 5, 4, 2, 0, 0, 0, 0, 0, 0}, 0.5, 0},
-	{"night", "夜间", [10]float64{0, 0, 0, 0, 0, 0, -1, -2, -3.5, -5}, 0, 0},
+	{"flat", "原声", "不做处理，保留录音原貌", [10]float64{}, 0, 0, 0, 0, "#7b8494", "#3b4252", iconWave},
+	{"pop", "流行", "人声靠前，节奏明快", [10]float64{-1, 0, 1.5, 3, 3.5, 2.5, 1, 0, 1, 1.5}, 0.15, 0.1, 0.2, 0, "#f472b6", "#f97316", iconParty},
+	{"rock", "摇滚", "鼓点有力，吉他明亮", [10]float64{4, 3, 2, 0, -1.5, -1, 1, 2.5, 3.5, 4}, 0.2, 0.15, 0, 0, "#ef4444", "#5b1414", iconGuitar},
+	{"jazz", "爵士", "温暖松弛，像在小酒馆", [10]float64{3, 2, 1, 2, -1, -1, 0, 1, 2, 3}, 0, 0.2, 0, 0, "#6366f1", "#1e1b4b", iconWine},
+	{"classical", "古典", "层次开阔，弦乐通透", [10]float64{4, 3, 2, 1, -1, -1, 0, 2, 3, 4}, 0, 0.3, 0, 0, "#d4a373", "#6b4a2b", iconPiano},
+	{"electronic", "电子", "低频饱满，高频闪亮", [10]float64{4, 3.5, 1, 0, -2, 1.5, 1, 1, 3, 4}, 0.35, 0.25, 0, 0, "#22d3ee", "#6d28d9", iconZap},
+	{"vocal", "人声", "突出歌声，听清每个字", [10]float64{-2, -2, -1, 1, 3, 4, 3.5, 1.5, 0, -1}, 0, 0, 0.6, 0, "#fb7185", "#881337", iconMicVocal},
+	{"bass", "重低音", "低频下潜，鼓点更震撼", [10]float64{6, 5, 4, 2, 0, 0, 0, 0, 0, 0}, 0.5, 0, 0, 0, "#f59e0b", "#5c2a07", iconDisc},
+	{"night", "夜间", "高音柔和，音量平稳不吵人", [10]float64{0, 0, 0, 0, 0, 0, -1, -2, -3.5, -5}, 0, 0, 0, 0.6, "#3b82f6", "#0b1530", iconMoonStar},
 }
 
-// customPreset is what the bands are once the listener moved one.
+// customPreset is what the effects are once the listener shaped them.
 const customPreset = "custom"
 
 func (a *app) openEffects() {
 	a.effects.open = true
+	if a.settings.EffectsPreset == customPreset {
+		a.effects.page = 1
+	}
 	a.redraw()
 }
 
@@ -72,8 +81,16 @@ func (a *app) effectsSettle() {
 // usePreset starts from p, turning the effects on.
 func (a *app) usePreset(p effectPreset) {
 	e := &a.settings.Effects
-	e.On, e.Bands, e.Bass, e.Width = true, p.bands, p.bass, p.width
+	e.On, e.Bands, e.Bass, e.Width, e.Vocal, e.Loudness = true, p.bands, p.bass, p.width, p.vocal, p.loud
 	a.settings.EffectsPreset = p.id
+	a.effectsChanged()
+}
+
+// shaped marks the effects the listener's own, turned on, as a control
+// of the custom page moved.
+func (a *app) shaped() {
+	a.settings.Effects.On = true
+	a.settings.EffectsPreset = customPreset
 	a.effectsChanged()
 }
 
@@ -90,7 +107,8 @@ func (a *app) presetLabel() string {
 	return effectPresets[0].label
 }
 
-// effectsDialog is the pane of the effects.
+// effectsDialog is the pane of the effects: the presets as cards, or the
+// controls to shape the sound by hand.
 func (a *app) effectsDialog(c *ui.Context) {
 	v := &a.effects
 	if !v.open {
@@ -99,18 +117,19 @@ func (a *app) effectsDialog(c *ui.Context) {
 	ink, pal := a.inkOn(false), a.pal
 	e := &a.settings.Effects
 	w, h := c.Size()
+	pw := min(720, w-80)
 	v.held = false
 	a.dialog(c, "effects", 0.35, &v.open, func(panel ui.Element) {
-		panel.Width(min(700, w-80)).MaxHeight(h - 56).TextColor(ink.text)
+		panel.Width(pw).MaxHeight(h - 56).TextColor(ink.text)
 		a.pane(panel, 26, false)
 		panel.Children(func() {
 			ui.Scroll(c.Key("effects-scroll")).Shrink(1).Padding(24).Gap(18).Children(func() {
 				ui.Row(c).Gap(14).AlignItems(ui.Center).Children(func() {
 					ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(4).Children(func() {
 						ui.Text(c, "音效").FontSize(20).FontWeight(700)
-						sub := "均衡器、低音和空间感，对所有歌曲生效"
+						sub := "已关闭，选择一个预设或手动调节即可开启"
 						if e.On {
-							sub = "当前：" + a.presetLabel()
+							sub = "当前：" + a.presetLabel() + "，对所有歌曲生效"
 						}
 						ui.Text(c, sub).FontSize(12.5).TextColor(ink.muted)
 					})
@@ -121,40 +140,26 @@ func (a *app) effectsDialog(c *ui.Context) {
 						v.open = false
 					}
 				})
-
-				// Off, what would be shaped stays in view, faded: a touch
-				// turns the effects on.
-				body := ui.Column(c).Gap(18)
-				if !e.On {
-					body.Opacity(0.55)
-				}
-				body.Children(func() {
-					ui.Row(c).Wrap().GapX(8).GapY(8).Children(func() {
-						for _, p := range effectPresets {
-							chosen := e.On && a.settings.EffectsPreset == p.id
-							bg, fg := ink.text.Alpha(0.08), ink.text
-							if chosen {
-								bg, fg = pal.accent, pal.onAccent
-							}
-							if pillButton(c.Key("preset-"+p.id), nil, p.label, bg, fg).Height(32).PaddingX(12).Clicked() {
-								a.usePreset(p)
-							}
-						}
-						// What the bands are once moved by hand: it shows where they
-						// are, and is chosen by moving one.
-						bg, fg := ink.text.Alpha(0.08), ink.muted
-						if a.settings.EffectsPreset == customPreset && e.On {
-							bg, fg = pal.accent, pal.onAccent
-						}
-						pillButton(c.Key("preset-custom"), nil, "自定义", bg, fg).Height(32).PaddingX(12)
-					})
-					a.equalizer(c, ink)
-					ui.Column(c).Radius(14).Background(ink.text.Alpha(0.05)).Padding(4, 16).Children(func() {
-						a.effectSlider(c, "低音增强", "加强 100Hz 以下的低频", &e.Bass, ink)
-						a.effectSlider(c, "空间环绕", "加宽左右声道，声音更开阔", &e.Width, ink)
-					})
+				ui.Row(c).Children(func() {
+					a.segmented(c.Key("effects-page"), &v.page, "预设", "自定义")
 				})
-
+				if v.page == 0 {
+					a.presetCards(c, (pw-48-2*12)/3)
+				} else {
+					body := ui.Column(c).Gap(18)
+					if !e.On {
+						body.Opacity(0.55)
+					}
+					body.Children(func() {
+						a.equalizer(c, ink)
+						ui.Column(c).Radius(14).Background(ink.text.Alpha(0.05)).Padding(4, 16).Children(func() {
+							a.effectSlider(c, "低音增强", "加强 100Hz 以下的低频", &e.Bass, ink)
+							a.effectSlider(c, "人声增强", "让居中的人声更靠前、更清楚，伴奏不受影响", &e.Vocal, ink)
+							a.effectSlider(c, "空间环绕", "加宽左右声道，声音更开阔", &e.Width, ink)
+							a.effectSlider(c, "响度均衡", "压低过响的段落、抬起轻柔的段落，音量更平稳", &e.Loudness, ink)
+						})
+					})
+				}
 				ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
 					if pillButton(c.Key("effects-reset"), iconReload, "恢复原声", ink.text.Alpha(0.08), ink.text).Clicked() {
 						a.usePreset(effectPresets[0])
@@ -169,6 +174,73 @@ func (a *app) effectsDialog(c *ui.Context) {
 		})
 	})
 	a.effectsSettle()
+}
+
+// presetCards lays the presets out as cards, three a row.
+func (a *app) presetCards(c *ui.Context, colw float32) {
+	ui.Grid(c).Columns(3).GapX(12).GapY(12).Children(func() {
+		for i := range effectPresets {
+			a.presetCard(c, &effectPresets[i], colw)
+		}
+	})
+}
+
+// presetCard is a preset as a card: its colors, what it is like, the shape
+// of its sound drawn along its foot, and a check while it is chosen.
+func (a *app) presetCard(c *ui.Context, p *effectPreset, w float32) {
+	e := &a.settings.Effects
+	chosen := e.On && a.settings.EffectsPreset == p.id
+	card := ui.ButtonBase(c.Key("preset-"+p.id)).Column().AlignItems(ui.Start).Justify(ui.Start).Height(116).Radius(14).Padding(14, 14).Gap(4).
+		FocusRing(false).Label(p.label).Clip()
+	card.LinearGradient(ui.LinearGradient{From: ui.Hex(p.from), To: ui.Hex(p.to), Angle: 135, Oklab: true})
+	edge := ui.Transparent
+	if chosen {
+		edge = white
+	}
+	card.Border(2, card.AnimateColor("edge", edge, ui.Animation{Duration: 140 * time.Millisecond}))
+	pose := ui.Pose{}
+	if card.Hovered() {
+		pose.Y = -2
+	}
+	if card.Pressed() {
+		pose = ui.Pose{Scale: 0.97}
+	}
+	card.AnimatePose(pose, ui.Snappy)
+	if card.Hovered() || chosen {
+		card.Shadow(0, 10, 24, -8, ui.Hex(p.to).Alpha(0.7))
+	}
+	bands := p.bands
+	card.Draw(func(pt *ui.Painter, r ui.Rect) {
+		// The shape of the preset's sound, a thin line along the foot: flat
+		// for the sound as it is.
+		x0, x1 := r.X+14, r.X+r.W-14
+		base, span := r.Y+r.H-20, float32(9)
+		path := &ui.Path{}
+		for i, g := range bands {
+			x := x0 + (x1-x0)*float32(i)/float32(len(bands)-1)
+			y := base - span*float32(g/player.EffectRange)*1.6
+			if i == 0 {
+				path.MoveTo(x, y)
+			} else {
+				path.LineTo(x, y)
+			}
+		}
+		pt.StrokePath(path.Join(ui.RoundJoin), 1.6, white.Alpha(0.75))
+	})
+	card.Children(func() {
+		// The theme, large and faint, off the corner.
+		ui.Icon(c, p.icon).Absolute().Right(-10).Top(-6).Size(78, 78).TextColor(white.Alpha(0.16))
+		ui.Text(c, p.label).FontSize(16).FontWeight(700).TextColor(white)
+		ui.Text(c, p.desc).FontSize(11.5).TextColor(white.Alpha(0.82)).MaxLines(2).LineHeight(1.35).Shrink(1).MinWidth(0)
+		if chosen {
+			ui.Box(c).Absolute().Top(10).Right(10).Size(20, 20).Radius(999).Background(white).Center().Children(func() {
+				ui.Icon(c, iconCheck).Size(12, 12).TextColor(ui.Hex(p.to))
+			})
+		}
+	})
+	if card.Clicked() {
+		a.usePreset(*p)
+	}
 }
 
 // eqHeight is how tall the equalizer's sliders run.
@@ -233,9 +305,7 @@ func (a *app) bandSlider(c *ui.Context, i int, ink paneInk) {
 	s := ui.SliderBase(c.Key("band"), &e.Bands[i], -player.EffectRange, player.EffectRange).Vertical().
 		Size(knobEQ+12, eqHeight).PaddingY(knobEQ / 2).Step(0.5).FocusRing(false).Label(label).Cursor(ui.CursorPointer)
 	if s.Changed() {
-		e.On = true
-		a.settings.EffectsPreset = customPreset
-		a.effectsChanged()
+		a.shaped()
 	}
 	if s.Pressed() {
 		a.effects.held = true
@@ -243,8 +313,7 @@ func (a *app) bandSlider(c *ui.Context, i int, ink paneInk) {
 	if s.DoubleClicked() {
 		// Back to nothing, as a fader is.
 		e.Bands[i] = 0
-		a.settings.EffectsPreset = customPreset
-		a.effectsChanged()
+		a.shaped()
 	}
 	g := float32((e.Bands[i] + player.EffectRange) / (2 * player.EffectRange))
 	hot := s.Hovered() || s.Pressed()
@@ -276,8 +345,7 @@ func (a *app) effectSlider(c *ui.Context, label, desc string, v *float64, ink pa
 		ui.Text(c, strconv.Itoa(int(*v*100+0.5))+"%").FontSize(12).FontFeatures("tnum").TextColor(ink.muted).Width(40).TextAlign(ui.End)
 		s := ui.SliderBase(c.Key("slider"), v, 0, 1).Width(200).Height(22).Step(0.01).FocusRing(false).Label(label).Cursor(ui.CursorPointer)
 		if s.Changed() {
-			a.settings.Effects.On = true
-			a.effectsChanged()
+			a.shaped()
 		}
 		if s.Pressed() {
 			a.effects.held = true
@@ -313,6 +381,7 @@ func freqLabel(f float64) string {
 	}
 	return strconv.Itoa(int(f))
 }
+
 // effectsNote is what the menu says of the effects beside their name.
 func (a *app) effectsNote() string {
 	if !a.settings.Effects.On {
