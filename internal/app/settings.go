@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 
 	"github.com/egoist/mygo"
+
+	"netease-music-mygo/internal/player"
 )
 
 // settings are the listener's choices, kept in settings.json in the user
@@ -150,6 +152,10 @@ type settings struct {
 	// listener's listening: off unless they turn it on, as NetEase does not
 	// document it.
 	Scrobble bool `json:"scrobble,omitempty"`
+	// Effects shape the sound, from the preset EffectsPreset names, or
+	// "custom" once a band moved.
+	Effects       player.Effects `json:"effects"`
+	EffectsPreset string         `json:"effectsPreset,omitempty"`
 
 	path string // where they were loaded from, and are saved to
 }

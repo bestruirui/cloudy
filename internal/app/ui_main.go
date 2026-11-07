@@ -105,6 +105,7 @@ func (a *app) view(c *ui.Context) {
 	a.accentDialog(c)
 	a.updateDialog(c)
 	a.shortcutEditorDialog(c)
+	a.effectsDialog(c)
 	a.menuOverlay(c)
 	a.downloadQueueDialog(c)
 	a.paneToasts(c)

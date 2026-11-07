@@ -119,7 +119,9 @@ func (a *app) songMenu(c *ui.Context, tr *netease.Track, size float32, color ui.
 func (a *app) songMenuLabeled(c *ui.Context, tr *netease.Track, size float32, color ui.Color, label string) ui.Element {
 	b := iconButton(c, iconMore, size, color, label)
 	if b.Clicked() {
-		a.menuBelow(b, true, a.songActions(tr, 0), a.songHead(tr))
+		// The details of what plays, which the sound effects shape too.
+		fx := menuAction{label: "音效", icon: iconWave, note: a.effectsNote(), do: a.openEffects}
+		a.menuBelow(b, true, append([][]menuAction{{fx}}, a.songActions(tr, 0)...), a.songHead(tr))
 	}
 	return b
 }
