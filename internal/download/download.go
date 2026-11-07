@@ -26,6 +26,9 @@ type Item struct {
 	Level string        `json:"level,omitempty"`
 	Size  int64         `json:"size,omitempty"`
 	At    time.Time     `json:"at"`
+	// Tagged says its file carries its title, cover, lyrics and NetEase ID,
+	// which Cloudy wrote into it.
+	Tagged bool `json:"tagged,omitempty"`
 }
 
 // Store is where the index of the saved songs is kept.

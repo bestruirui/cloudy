@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf16"
@@ -26,6 +27,9 @@ type Song struct {
 	Duration    time.Duration
 	Picture     []byte
 	PictureMIME string
+	// NeteaseID is the NetEase song the file was downloaded as, which Cloudy
+	// writes into what it downloads, or 0.
+	NeteaseID int64
 
 	pictureType byte
 }
@@ -222,6 +226,8 @@ func readID3v2(b []byte, s *Song) {
 			s.Album = first(s.Album, id3Text(body))
 		case "TPE2", "TP2":
 			s.Artist = first(s.Artist, id3Text(body))
+		case "TXXX":
+			readTXXX(body, s)
 		case "APIC":
 			readAPIC(body, s)
 		case "PIC":
@@ -573,6 +579,8 @@ func readVorbisComment(b []byte, s *Song) {
 			s.Album = first(s.Album, value)
 		case "ALBUMARTIST":
 			s.Artist = first(s.Artist, value)
+		case "NETEASE_ID":
+			s.NeteaseID, _ = strconv.ParseInt(strings.TrimSpace(value), 10, 64)
 		}
 	}
 }
@@ -610,4 +618,17 @@ func flacBytes(b []byte) ([]byte, []byte) {
 		return nil, nil
 	}
 	return b[4 : 4+n], b[4+n:]
+}
+
+// readTXXX reads a user text frame: Cloudy keeps the NetEase song a file
+// was downloaded as in one, as NETEASE_ID, in Latin-1 or UTF-8.
+func readTXXX(b []byte, s *Song) {
+	if len(b) < 2 || b[0] != 0 && b[0] != 3 {
+		return
+	}
+	desc, value, ok := bytes.Cut(b[1:], []byte{0})
+	if !ok || string(desc) != "NETEASE_ID" {
+		return
+	}
+	s.NeteaseID, _ = strconv.ParseInt(strings.TrimSpace(strings.TrimRight(string(value), "\x00")), 10, 64)
 }

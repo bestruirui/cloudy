@@ -220,6 +220,7 @@ type app struct {
 	downloadGen       int
 	downloadFailed    []failedDownload // songs that failed to download, to try again
 	downloadsRestored bool             // the queue left at the last quit is picked up
+	downloadsFixed    bool             // the downloads without tags were looked at
 	downloadArtDir    string // where covers found in the folder are kept
 	downloadIndex     string // where the index of downloaded songs is kept
 	downloadBox       ui.Handle

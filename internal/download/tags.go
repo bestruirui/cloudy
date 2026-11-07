@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"unicode/utf16"
 )
@@ -17,37 +18,102 @@ type Tags struct {
 	Title, Artist, Album string
 	Lyrics               string // as LRC
 	Cover                []byte // JPEG or PNG
+	// ID is the NetEase song the file is, so that it is known again
+	// without the index.
+	ID int64
 }
 
 // WriteTags writes tags into the MP3 or FLAC file at path, in place of
 // those it has: an ID3v2.3 tag, or FLAC's comments and picture. The file
 // is written beside it and moved over it, so a failure leaves it whole.
+//
+// Only the tags are read into memory: the audio, some 50 MB of a lossless
+// song, is copied from the file as it is, a piece at a time.
 func WriteTags(path string, t Tags) error {
-	src, err := os.ReadFile(path)
+	f, err := os.Open(path)
 	if err != nil {
 		return err
 	}
-	var out []byte
-	switch strings.ToLower(filepath.Ext(path)) {
-	case ".mp3":
-		out = tagMP3(src, t)
-	case ".flac":
-		if out, err = tagFLAC(src, t); err != nil {
-			return err
-		}
-	default:
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	ext := strings.ToLower(filepath.Ext(path))
+	if ext != ".mp3" && ext != ".flac" {
 		return errors.New("download: not an MP3 or a FLAC")
 	}
+	head, err := headOf(f, info.Size(), ext == ".flac")
+	if err != nil {
+		return err
+	}
+	// The tags of head are replaced; what follows it, the audio, is not
+	// in head, so the new head ends where it starts.
+	var out []byte
+	if ext == ".mp3" {
+		out = tagMP3(head, t)
+	} else if out, err = tagFLAC(head, t); err != nil {
+		return err
+	}
 	tmp := path + ".tagging"
-	if err := os.WriteFile(tmp, out, 0o644); err != nil {
-		os.Remove(tmp)
+	w, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	if err != nil {
 		return err
 	}
-	if err := os.Rename(tmp, path); err != nil {
-		os.Remove(tmp)
-		return err
+	_, err = w.Write(out)
+	if err == nil {
+		_, err = io.Copy(w, io.NewSectionReader(f, int64(len(head)), info.Size()-int64(len(head))))
 	}
-	return nil
+	if cerr := w.Close(); err == nil {
+		err = cerr
+	}
+	f.Close()
+	if err == nil {
+		err = os.Rename(tmp, path)
+	}
+	if err != nil {
+		os.Remove(tmp)
+	}
+	return err
+}
+
+// headOf reads what of a file comes before its audio: its ID3 tag, and a
+// FLAC's mark and metadata blocks.
+func headOf(r io.ReaderAt, size int64, flac bool) ([]byte, error) {
+	at := func(off, n int64) ([]byte, error) {
+		if off+n > size {
+			return nil, io.ErrUnexpectedEOF
+		}
+		b := make([]byte, n)
+		_, err := r.ReadAt(b, off)
+		return b, err
+	}
+	var end int64
+	if h, err := at(0, 10); err == nil && string(h[:3]) == "ID3" {
+		end = 10 + (int64(h[6]&0x7f)<<21 | int64(h[7]&0x7f)<<14 | int64(h[8]&0x7f)<<7 | int64(h[9]&0x7f))
+		if h[5]&0x10 != 0 {
+			end += 10 // a footer
+		}
+	}
+	if flac {
+		mark, err := at(end, 4)
+		if err != nil || string(mark) != "fLaC" {
+			return nil, errors.New("download: not a FLAC file")
+		}
+		p := end + 4
+		for {
+			h, err := at(p, 4)
+			if err != nil {
+				return nil, err
+			}
+			p += 4 + (int64(h[1])<<16 | int64(h[2])<<8 | int64(h[3]))
+			if h[0]&0x80 != 0 {
+				break
+			}
+		}
+		end = p
+	}
+	return at(0, end)
 }
 
 // LyricsPath is where the .lrc of the song at path is kept: beside it, by
@@ -89,6 +155,10 @@ func tagMP3(src []byte, t Tags) []byte {
 	text("TIT2", t.Title)
 	text("TPE1", t.Artist)
 	text("TALB", t.Album)
+	if t.ID > 0 {
+		// Latin-1, the description, the value.
+		frame(&frames, "TXXX", []byte("\x00NETEASE_ID\x00"+strconv.FormatInt(t.ID, 10)))
+	}
 	if t.Lyrics != "" {
 		// Encoding, language, an empty description, the text.
 		body := append([]byte{1}, "XXX"...)
@@ -185,6 +255,9 @@ func tagFLAC(src []byte, t Tags) ([]byte, error) {
 	add("ARTIST", t.Artist)
 	add("ALBUM", t.Album)
 	add("LYRICS", t.Lyrics)
+	if t.ID > 0 {
+		add("NETEASE_ID", strconv.FormatInt(t.ID, 10))
+	}
 	binary.Write(&comments, binary.LittleEndian, uint32(len(fields)))
 	for _, f := range fields {
 		binary.Write(&comments, binary.LittleEndian, uint32(len(f)))

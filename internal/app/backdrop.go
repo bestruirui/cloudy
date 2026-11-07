@@ -101,7 +101,10 @@ func Fragment(dst vec4, pos vec2) vec4 {
 var fogShader = sync.OnceValue(func() *shader.Shader { return shader.MustCompile(fogSource) })
 
 // backdropFrame is how often the fog is painted while it moves.
-func backdropFrame() time.Duration { return motionFrame() }
+// It is a shader over the whole window, drifting slowly: past 60 frames a
+// second the eye sees no more of it, and the GPU would draw it four times
+// as often on a 240 Hz display.
+func backdropFrame() time.Duration { return max(motionFrame(), time.Second/60) }
 
 // backdropFade is how long another song's backdrop takes to fade in.
 const backdropFade = 700 * time.Millisecond

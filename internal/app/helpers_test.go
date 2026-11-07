@@ -20,7 +20,8 @@ func newTestApp() *app {
 	a.art = newArtCache(func(func()) {})
 	a.pl = player.New(func(func()) {})
 	a.pl.SetVolume(0.5)
-	tagDownload = func(download.Item) {}
+	tagDownload = func(download.Item) bool { return true }
+	a.downloadsFixed = true
 	// The system is not asked, as no app runs: starting at login is off,
 	// and the outputs are none.
 	off := false

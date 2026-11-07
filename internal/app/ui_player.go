@@ -130,7 +130,7 @@ func (a *app) scrubber(c *ui.Context, st *scrubState, track, fill ui.Color, heig
 			// The smoke drifts slowly, at the frame rate set for what
 			// moves on its own (motionFrame), not at each of the display's
 			// refreshes.
-			p.After(motionFrame())
+			p.After(max(motionFrame(), time.Second/60))
 		case pl.Playing() && !st.active && dur > 0:
 			// Again when the fill has moved a pixel of the screen, which
 			// takes a good part of a second, rather than every frame.

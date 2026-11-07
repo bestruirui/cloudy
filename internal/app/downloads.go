@@ -149,6 +149,7 @@ func (a *app) loadDownloads(scan bool) {
 	sortDownloads(items)
 	a.downloads = items
 	a.downloadsLoaded = true
+	a.fixDownloads()
 	if scan || broken || missing {
 		if err := a.saveDownloads(); err != nil {
 			a.downloadsErr = "无法保存下载记录"
@@ -175,6 +176,8 @@ func (a *app) scanDownloadFolder(dir string, indexed []download.Item) ([]downloa
 		it, ok := byPath[key]
 		if !ok {
 			it = download.Item{Track: a.downloadFileTrack(s), Path: s.Path}
+			// Downloaded by Cloudy, it says which song it is.
+			it.Tagged = s.NeteaseID > 0
 		} else {
 			it.Path = s.Path
 			it.Track = downloadDetails(it.Track, s)
@@ -377,7 +380,7 @@ func (a *app) pumpDownload() {
 			})
 		})
 		if err == nil {
-			tagDownload(item)
+			item.Tagged = tagDownload(item)
 		}
 		a.post(func() {
 			if gen != a.downloadGen {
@@ -475,6 +478,10 @@ func (a *app) downloadFileTrack(s local.Song) netease.Track {
 		Name:      s.Title,
 		Duration:  s.Duration.Milliseconds(),
 		LocalPath: s.Path,
+	}
+	if s.NeteaseID > 0 {
+		// Downloaded by Cloudy: the NetEase song, with its lyrics and menu.
+		tr.ID = s.NeteaseID
 	}
 	if tr.Name == "" {
 		tr.Name = strings.TrimSuffix(filepath.Base(s.Path), filepath.Ext(s.Path))

@@ -20,7 +20,7 @@ func TestWriteTags(t *testing.T) {
 		}
 		path := filepath.Join(t.TempDir(), "歌手 - 歌名"+filepath.Ext(name))
 		os.WriteFile(path, src, 0o644)
-		tags := Tags{Title: "晴天", Artist: "周杰伦", Album: "叶惠美", Lyrics: "[00:01.00]故事的小黄花", Cover: cover}
+		tags := Tags{Title: "晴天", Artist: "周杰伦", Album: "叶惠美", Lyrics: "[00:01.00]故事的小黄花", Cover: cover, ID: 186016}
 		if err := WriteTags(path, tags); err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
@@ -32,8 +32,8 @@ func TestWriteTags(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if s.Title != "晴天" || s.Artist != "周杰伦" || s.Album != "叶惠美" {
-			t.Errorf("%s: read %q / %q / %q", name, s.Title, s.Artist, s.Album)
+		if s.Title != "晴天" || s.Artist != "周杰伦" || s.Album != "叶惠美" || s.NeteaseID != 186016 {
+			t.Errorf("%s: read %q / %q / %q / %d", name, s.Title, s.Artist, s.Album, s.NeteaseID)
 		}
 		if !bytes.Equal(s.Picture, cover) {
 			t.Errorf("%s: cover of %d bytes, want %d", name, len(s.Picture), len(cover))

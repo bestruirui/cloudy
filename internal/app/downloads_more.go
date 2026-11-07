@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"netease-music-mygo/internal/download"
 	"netease-music-mygo/internal/netease"
@@ -40,11 +41,11 @@ func (a *app) downloadLevel() string {
 // album, cover and lyrics, and its lyrics beside it as a .lrc, for other
 // players, and for this one to know it again if its index is lost. It runs
 // off the main thread; what it cannot fetch it leaves out. Tests replace it.
-var tagDownload = func(item download.Item) {
+var tagDownload = func(item download.Item) bool {
 	tr := item.Track
-	tags := download.Tags{Title: tr.Name, Artist: tr.ArtistNames(), Album: tr.Album.Name}
-	if tr.Album.PicURL != "" {
-		if b, err := netease.Fetch(netease.Sized(tr.Album.PicURL, 800)); err == nil {
+	tags := download.Tags{Title: tr.Name, Artist: tr.ArtistNames(), Album: tr.Album.Name, ID: tr.ID}
+	if pic := tr.Album.PicURL; pic != "" && strings.HasPrefix(pic, "http") {
+		if b, err := netease.Fetch(netease.Sized(pic, 800)); err == nil {
 			tags.Cover = b
 		}
 	}
@@ -54,7 +55,82 @@ var tagDownload = func(item download.Item) {
 			os.WriteFile(download.LyricsPath(item.Path), []byte(lrc), 0o644)
 		}
 	}
-	download.WriteTags(item.Path, tags)
+	return download.WriteTags(item.Path, tags) == nil
+}
+
+// searchSongs finds songs on NetEase; tests replace it.
+var searchSongs = netease.Search
+
+// matchDownload finds the NetEase song a file put in the folder, or
+// downloaded before its tags were written, is: one of the same title, an
+// artist in common, and as long, within a few seconds.
+func matchDownload(tr netease.Track) (netease.Track, bool) {
+	artist := strings.TrimSpace(tr.ArtistNames())
+	if tr.Name == "" || artist == "" || artist == "未知歌手" {
+		return netease.Track{}, false
+	}
+	found, err := searchSongs(artist+" "+tr.Name, 10)
+	if err != nil {
+		return netease.Track{}, false
+	}
+	norm := func(s string) string { return strings.ToLower(strings.Join(strings.Fields(s), " ")) }
+	for _, f := range found {
+		if norm(f.Name) != norm(tr.Name) {
+			continue
+		}
+		if tr.Duration > 0 && f.Duration > 0 && max(tr.Duration-f.Duration, f.Duration-tr.Duration) > 3000 {
+			continue
+		}
+		for _, ar := range f.Artists {
+			if ar.Name != "" && strings.Contains(norm(artist), norm(ar.Name)) {
+				return f, true
+			}
+		}
+	}
+	return netease.Track{}, false
+}
+
+// fixDownloads, once a launch, writes the tags of the songs downloaded
+// before Cloudy wrote them, and finds again on NetEase those the folder
+// holds without saying which song they are: they get their cover, their
+// lyrics and their menu back. It works one song at a time, off the main
+// thread, and keeps the index as it goes.
+func (a *app) fixDownloads() {
+	if a.downloadsFixed {
+		return
+	}
+	a.downloadsFixed = true
+	var todo []download.Item
+	for _, it := range a.downloads {
+		if !it.Tagged {
+			todo = append(todo, it)
+		}
+	}
+	if len(todo) == 0 {
+		return
+	}
+	go func() {
+		for _, it := range todo {
+			known := it.Track.ID > 0
+			if !known {
+				m, ok := matchDownload(it.Track)
+				if !ok {
+					continue
+				}
+				m.LocalPath = ""
+				it.Track, known = m, true
+			}
+			tagged := tagDownload(it)
+			a.post(func() {
+				for i := range a.downloads {
+					if downloadPathKey(a.downloads[i].Path) == downloadPathKey(it.Path) {
+						a.downloads[i].Track, a.downloads[i].Tagged = it.Track, tagged
+					}
+				}
+				a.saveDownloads()
+			})
+		}
+	}()
 }
 
 // failedDownload is a song whose download failed, and why, kept for the
