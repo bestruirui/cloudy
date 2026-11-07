@@ -50,6 +50,11 @@ type app struct {
 	pl    *player.Player
 	pal   palette
 
+	// thumbsAt is what the taskbar thumbnail shows (thumbbar.go), and
+	// thumbDark whether the taskbar is dark.
+	thumbsAt  *thumbState
+	thumbDark bool
+
 	route   route
 	history []route
 	forward []route // the pages gone back from, the last first to go to
@@ -253,6 +258,7 @@ func (a *app) post(fn func()) {
 	}
 	a.win.Update(func() {
 		fn()
+		a.syncThumbs()
 		a.redraw()
 	})
 }
@@ -303,6 +309,13 @@ func Run() error {
 		queueAt:    -1,
 		cacheUsed:  -1,
 	}
+	// One Cloudy at a time: launched again, it shows the window of the one
+	// running, from the tray too, and goes. An update starts the new
+	// version after the old one let go of the lock.
+	if !mygo.App.RequestSingleInstanceLock() {
+		return nil
+	}
+	mygo.App.OnSecondInstance(func([]string, string) { a.showMain() })
 	moveOldData()
 	copyFormerData()
 	mygo.App.SetLanguages(appLanguage)
@@ -334,6 +347,7 @@ func Run() error {
 			a.keepSession()
 			a.autoFollow()
 			a.syncCaptions()
+			a.syncThumbs()
 		}
 		a.volume = a.settings.Volume
 		a.pl.SetVolume(a.volume)
@@ -373,6 +387,10 @@ func Run() error {
 		a.win.OnFocus(a.freshenHome)
 		a.applyTray()
 		a.applyDeskLyrics()
+		// The thumbnail's buttons, and their glyphs as the taskbar turns
+		// light or dark.
+		a.readTaskbarDark()
+		mygo.Theme.OnUpdated(func() { a.post(a.readTaskbarDark) })
 		// A version that came out since the app last ran shows soon after
 		// it opens, and one a day after that, if the listener asks for it.
 		go a.autoCheckUpdates()

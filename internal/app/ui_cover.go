@@ -168,6 +168,11 @@ func (a *app) npCover(c *ui.Context, tr *netease.Track, art *artwork, size float
 		}
 	}
 
+	// A tap, which a drag never is, closes the view, as the chevron does.
+	if wrap.Clicked() && cs.flung == 0 && cs.swipe == 0 {
+		a.nowPlaying = false
+	}
+
 	at := wrap.DragOffset()
 	if cs.flung != 0 && math.Abs(float64(at.X)) >= float64(far)*0.97 {
 		// Gone: the next cover comes in from the other side.

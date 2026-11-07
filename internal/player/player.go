@@ -74,6 +74,11 @@ type Player struct {
 	feeding  bool // the feed is asked
 	awaiting bool // at the queue's end, for what the feed gives
 
+	// cover is the track's cover image as fetched, once it is, and coverOf
+	// the track it is of.
+	cover   []byte
+	coverOf int64
+
 	track      *netease.Track
 	out        *audio.Player
 	stream     stream
@@ -124,6 +129,15 @@ func New(post func(func())) *Player {
 	return p
 }
 
+// Cover returns the cover image of the track playing, as fetched (JPEG or
+// PNG), or nil until it is.
+func (p *Player) Cover() []byte {
+	if p.track == nil || p.coverOf != p.track.ID {
+		return nil
+	}
+	return p.cover
+}
+
 // sync shows the system, and Changed, where playback is.
 func (p *Player) sync() {
 	if p.Changed != nil {
@@ -142,6 +156,7 @@ func (p *Player) sync() {
 
 // announce shows the system the track, and its cover once loaded.
 func (p *Player) announce(t *netease.Track, artwork []byte) {
+	p.cover, p.coverOf = artwork, t.ID
 	state := mygo.PlaybackPaused
 	if p.playing {
 		state = mygo.PlaybackPlaying
@@ -728,6 +743,9 @@ func (p *Player) loadAttempt(at, skipped int, play bool, from time.Duration, dir
 			p.post(func() {
 				if gen == p.gen {
 					p.announce(&t, cover)
+					if p.Changed != nil {
+						p.Changed()
+					}
 				}
 			})
 		}

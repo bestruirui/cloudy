@@ -29,6 +29,8 @@ var shortcutActions = []shortcutAction{
 	{"mute", "静音/取消静音", []string{"Ctrl+Alt+Shift+M"}, func(a *app) { a.toggleMute() }},
 	{"like", "喜欢当前歌曲", []string{"Ctrl+Alt+V", "Ctrl+Alt+L"}, func(a *app) { a.likeCurrent() }},
 	{"show", "显示/隐藏窗口", []string{"Ctrl+Alt+M"}, func(a *app) { a.toggleWindow() }},
+	{"desk", "桌面歌词 开/关", []string{"Ctrl+Alt+D", "Ctrl+Alt+Shift+D"}, func(a *app) { a.toggleDeskLyrics() }},
+	{"desk-lock", "桌面歌词 锁定/解锁", []string{"Ctrl+Alt+Shift+K"}, func(a *app) { a.toggleDeskLock() }},
 }
 
 // These are the system's shortcut registry; tests replace them.
@@ -57,6 +59,7 @@ func (a *app) applyGlobalKeys() {
 		for _, key := range keys {
 			err := registerShortcut(key, func() {
 				do(a)
+				a.syncThumbs()
 				a.redraw()
 			})
 			if err == nil {

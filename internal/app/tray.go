@@ -86,6 +86,7 @@ func (a *app) applyTray() {
 		}
 		// Windows' left click, where the right one opens the menu.
 		t.OnClick(a.showMain)
+		t.OnAppearanceChange(func() { a.post(a.readTaskbarDark) })
 		a.tray = t
 	case !show && a.tray != nil:
 		a.tray.Destroy()
