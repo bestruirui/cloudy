@@ -105,6 +105,7 @@ type app struct {
 
 	mineCollapsed, savedCollapsed bool
 	albumsCollapsed               bool
+	mineView                      mineView // the search on the listener's page, and the kinds opened on it
 
 	query       string
 	searchBox   ui.Handle
@@ -127,7 +128,7 @@ type app struct {
 	loginKnown  *bool // whether the app starts at login, once asked
 	sideDragging bool // the sidebar's edge is being dragged
 	shownTracks []netease.Track // the songs the page lists now, for choosing among them
-	recent      recentState     // the songs played lately
+	recent      recentState     // the songs played on this computer
 	outputList  outputList // the audio outputs, as last listed
 	comments    commentState
 	tabCount    rollState // the count on the comments' tab, as it rolls
@@ -321,7 +322,10 @@ func Run() error {
 		a.pl.Quality = func() string { return a.settings.Quality }
 		a.pl.Normalize = func() bool { return a.settings.Normalize }
 		a.pl.Cache = newSongCache(a.settings.CacheMB)
-		a.pl.Listened = a.listened
+		a.pl.Listened = func(t netease.Track, played time.Duration, ended bool) {
+			a.listened(t, played, ended)
+			a.remember(t, played, ended)
+		}
 		a.pl.SongStopped = func() {
 			a.sleepMinutes = 0
 			a.toast = "定时结束，本首播完后已暂停"

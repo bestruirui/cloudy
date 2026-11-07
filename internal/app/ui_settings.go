@@ -759,6 +759,9 @@ func (a *app) settingsAppearancePage(k *settingsKit) {
 				a.changed()
 			})
 		})
+		k.row("侧边栏列出全部歌单", "关闭时每组只列出前 8 个，其余在「我的主页」里查看和搜索", func() {
+			k.toggle("sidebar-all", "侧边栏列出全部歌单", &s.SidebarAll, false, nil)
+		})
 	})
 }
 

@@ -138,6 +138,12 @@ func (a *app) playlistCard(c *ui.Context, pl *netease.Playlist) {
 // times it was played on it, over its name and a line under that. The
 // button on the cover calls play; it reports whether the rest was clicked.
 func (a *app) coverCard(c *ui.Context, name, cover string, playCount float64, sub string, play func()) bool {
+	_, clicked := a.coverCardOf(c, name, cover, playCount, sub, play)
+	return clicked
+}
+
+// coverCardOf is coverCard, with the card itself, for a menu of its own.
+func (a *app) coverCardOf(c *ui.Context, name, cover string, playCount float64, sub string, play func()) (ui.Element, bool) {
 	p := a.pal
 	// From the top: a grid stretches the cards of a row as tall as the
 	// tallest, whose name or line under it takes two lines.
@@ -176,7 +182,7 @@ func (a *app) coverCard(c *ui.Context, name, cover string, playCount float64, su
 	if clicked {
 		a.flyFrom(c, cover, artAt, 14)
 	}
-	return clicked
+	return card, clicked
 }
 
 // coverFill fills its parent with a cover, its corners rounded by radius.

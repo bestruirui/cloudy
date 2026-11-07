@@ -22,6 +22,8 @@ func newTestApp() *app {
 	a.pl.SetVolume(0.5)
 	tagDownload = func(download.Item) bool { return true }
 	a.downloadsFixed = true
+	// The songs played on this computer are none, not the developer's.
+	a.recent.loaded = true
 	// The system is not asked, as no app runs: starting at login is off,
 	// and the outputs are none.
 	off := false

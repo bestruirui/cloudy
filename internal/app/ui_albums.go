@@ -171,7 +171,14 @@ func (a *app) myAlbumsSection(c *ui.Context) {
 	if a.motion > motionOff {
 		rows.Transition(ui.ElementTransition{Animation: &motionPane, Enter: &ui.Motion{Collapse: true}, Exit: &ui.Motion{Collapse: true}})
 	}
-	rows.Children(func() { a.albumRows(c, a.sortedAlbums()) })
+	rows.Children(func() {
+		albums := a.sortedAlbums()
+		shown := a.sideShown(len(albums))
+		a.albumRows(c, albums[:shown])
+		if shown < len(albums) {
+			a.sideMore(c, len(albums), mineAlbums)
+		}
+	})
 }
 
 // albumSortMenu is the menu of the orders, and of loading the albums again.

@@ -111,8 +111,8 @@ func (a *app) albumGrid(c *ui.Context, albums []netease.AlbumProfile) {
 }
 
 // albumCard is an album's cover, lifting under the pointer, over its name
-// and the year it came out.
-func (a *app) albumCard(c *ui.Context, al *netease.AlbumProfile) {
+// and the year it came out. It returns the card, for a menu of its own.
+func (a *app) albumCard(c *ui.Context, al *netease.AlbumProfile) ui.Element {
 	p := a.pal
 	card := ui.ButtonBase(c).Column().Gap(10).AlignItems(ui.Stretch).FocusRing(false).Label(al.Name)
 	hovered := card.Hovered()
@@ -144,4 +144,5 @@ func (a *app) albumCard(c *ui.Context, al *netease.AlbumProfile) {
 		a.flyFrom(c, al.PicURL, artAt, 14)
 		a.open(route{page: pageAlbum, id: al.ID})
 	}
+	return card
 }

@@ -45,7 +45,7 @@ func (a *app) view(c *ui.Context) {
 		c.Root().Background(ui.Transparent)
 	}
 	root := ui.Box(c).Fill()
-	if !c.Focused(a.searchBox) && !c.Focused(a.filterBox) && !c.Focused(a.downloadBox) && !c.Focused(a.settingsSearchBox) {
+	if !c.Focused(a.searchBox) && !c.Focused(a.filterBox) && !c.Focused(a.downloadBox) && !c.Focused(a.mineView.box) && !c.Focused(a.settingsSearchBox) {
 		// Space plays and pauses wherever the focus is, as in Music. On
 		// the container around everything, it comes before a button the
 		// pointer focused, which would take Space as a click; on the
@@ -200,7 +200,7 @@ func (a *app) load(r route) {
 	case pageDownloads:
 		a.loadDownloads(false)
 	case pageRecent:
-		a.loadRecent(false)
+		a.recent.sure = false
 	}
 }
 
@@ -256,9 +256,7 @@ func (a *app) sidebar(c *ui.Context) {
 				a.navItem(c, iconCharts, "排行榜", route{page: pageCharts})
 				a.navItem(c, iconPodcast, "播客", route{page: pagePodcasts})
 				a.navItem(c, iconDownload, "下载歌曲", route{page: pageDownloads})
-				if a.profile != nil {
-					a.navItem(c, iconHistory, "最近播放", route{page: pageRecent})
-				}
+				a.navItem(c, iconHistory, "最近播放", route{page: pageRecent})
 				if a.searched.query != "" {
 					a.navItem(c, iconSearch, "搜索结果", a.searched)
 				}

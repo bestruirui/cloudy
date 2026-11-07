@@ -144,6 +144,12 @@ type settings struct {
 	// own width; SidebarSize how large its rows are: "", large or huge.
 	SidebarWidth int    `json:"sidebarWidth,omitempty"`
 	SidebarSize  string `json:"sidebarSize,omitempty"`
+	// SidebarAll lists every playlist and album in the sidebar, rather than
+	// the first few with a way to the listener's page for the rest.
+	SidebarAll bool `json:"sidebarAll,omitempty"`
+	// PlaylistSort is how the listener's page lists playlists: empty for
+	// NetEase's own order, name or songs.
+	PlaylistSort string `json:"playlistSort,omitempty"`
 	// Scrobble tells NetEase of the songs played, for them to count in the
 	// listener's listening: off unless they turn it on, as NetEase does not
 	// document it.

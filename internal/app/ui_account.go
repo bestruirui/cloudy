@@ -54,7 +54,6 @@ func (a *app) signedIn(prof *netease.Profile) {
 	a.restoreSession()
 	a.restoreDownloadQueue()
 	a.mine, a.saved, a.recPlaylists, a.liked = nil, nil, nil, nil
-	a.recent = recentState{}
 	a.myAlbums, a.myAlbumsErr, a.myAlbumsBusy = nil, "", false
 	a.likedPrograms, a.askedPrograms = nil, nil
 	// What the listener may play, and follows, changed: load the pages
@@ -368,7 +367,17 @@ func (a *app) myPlaylists(c *ui.Context, title string, lists []netease.Playlist,
 		if a.motion > motionOff {
 			rows.Transition(ui.ElementTransition{Animation: &motionPane, Enter: &ui.Motion{Collapse: true}, Exit: &ui.Motion{Collapse: true}})
 		}
-		rows.Children(func() { a.playlistRows(c, lists, mine) })
+		rows.Children(func() {
+			shown := a.sideShown(len(lists))
+			a.playlistRows(c, lists[:shown], mine)
+			if shown < len(lists) {
+				kind := mineSaved
+				if mine {
+					kind = mineMade
+				}
+				a.sideMore(c, len(lists), kind)
+			}
+		})
 	}
 }
 

@@ -177,14 +177,21 @@ func Logout() {
 // UserPlaylists returns the playlists a listener made, the liked songs
 // first, and those they saved.
 func UserPlaylists(uid int64) (made, saved []Playlist, err error) {
-	var res struct {
-		Playlist []Playlist `json:"playlist"`
-	}
-	q := url.Values{"uid": {strconv.FormatInt(uid, 10)}, "limit": {"200"}, "offset": {"0"}}
-	if err := get("/api/user/playlist", q, &res); err != nil {
+	all, err := allPlaylistPages(func(offset int) ([]Playlist, bool, error) {
+		var res struct {
+			Playlist []Playlist `json:"playlist"`
+			More     bool       `json:"more"`
+		}
+		q := url.Values{"uid": {strconv.FormatInt(uid, 10)}, "limit": {strconv.Itoa(playlistPage)}, "offset": {strconv.Itoa(offset)}}
+		if err := get("/api/user/playlist", q, &res); err != nil {
+			return nil, false, err
+		}
+		return res.Playlist, res.More, nil
+	})
+	if err != nil {
 		return nil, nil, err
 	}
-	for _, p := range res.Playlist {
+	for _, p := range all {
 		if p.Subscribed {
 			saved = append(saved, p)
 		} else {
@@ -192,6 +199,42 @@ func UserPlaylists(uid int64) (made, saved []Playlist, err error) {
 		}
 	}
 	return made, saved, nil
+}
+
+// playlistPage is how many of a listener's playlists NetEase sends at a
+// time, and playlistPages how many times the app asks: past that, a list
+// would take longer to load than anyone would scroll it.
+const (
+	playlistPage  = 200
+	playlistPages = 25
+)
+
+// allPlaylistPages asks fetch for the pages of a listener's playlists, one
+// after the other, until NetEase has no more. A playlist made or saved
+// while the pages load can move one along into the next: it is kept once.
+func allPlaylistPages(fetch func(offset int) ([]Playlist, bool, error)) ([]Playlist, error) {
+	var out []Playlist
+	seen := map[int64]bool{}
+	for page := 0; page < playlistPages; page++ {
+		lists, more, err := fetch(page * playlistPage)
+		if err != nil {
+			if page > 0 {
+				// What came keeps: a list cut short beats none.
+				return out, nil
+			}
+			return nil, err
+		}
+		for _, p := range lists {
+			if !seen[p.ID] {
+				seen[p.ID] = true
+				out = append(out, p)
+			}
+		}
+		if !more || len(lists) == 0 {
+			break
+		}
+	}
+	return out, nil
 }
 
 // RecommendedPlaylists returns the day's playlists picked for the listener.

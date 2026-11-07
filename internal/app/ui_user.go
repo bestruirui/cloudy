@@ -60,11 +60,15 @@ func (a *app) loadUser(id int64) {
 		})
 	}()
 	go func() {
-		made, _, err := userPlaylists(id)
+		made, saved, err := userPlaylists(id)
 		a.post(func() {
 			d.loading--
 			if err == nil {
 				d.playlists = publicPlaylists(made, id)
+				// The listener's own, where the sidebar's did not come.
+				if a.profile != nil && a.profile.UserID == id && a.mine == nil && a.saved == nil {
+					a.mine, a.saved = made, saved
+				}
 			}
 		})
 	}()
@@ -144,6 +148,10 @@ func (a *app) userPage(c *ui.Context) {
 				}
 			})
 		})
+		if own {
+			a.minePage(c, d)
+			return
+		}
 		a.section(c, "创建的歌单")
 		switch {
 		case d.loading > 0:
@@ -154,28 +162,6 @@ func (a *app) userPage(c *ui.Context) {
 			ui.Grid(c).Columns(a.columns(c, 168)).GapX(20).GapY(28).Children(func() {
 				for i := range d.playlists {
 					a.playlistCard(c.Key(d.playlists[i].ID), &d.playlists[i])
-				}
-			})
-		}
-		if own && d.podcastsShown {
-			a.section(c, "订阅的播客")
-			if len(d.podcasts) == 0 {
-				a.empty(c, "还没有订阅播客")
-			}
-			ui.Grid(c).Columns(a.columns(c, 340)).GapX(8).GapY(4).Margin(0, -12).Children(func() {
-				for i := range d.podcasts {
-					a.podcastRow(c.Key(d.podcasts[i].ID), &d.podcasts[i])
-				}
-			})
-		}
-		if own && d.artistsShown {
-			a.section(c, "关注的歌手")
-			if len(d.artists) == 0 {
-				a.empty(c, "还没有关注歌手")
-			}
-			ui.Grid(c).Columns(a.columns(c, 132)).GapX(20).GapY(28).Children(func() {
-				for i := range d.artists {
-					a.artistCard(c.Key(d.artists[i].ID), &d.artists[i])
 				}
 			})
 		}
