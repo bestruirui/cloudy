@@ -65,7 +65,7 @@ func (a *app) openEffects() {
 // once no slider is held, rather than after the second decoded ahead, and
 // kept then.
 func (a *app) effectsChanged() {
-	a.pl.SetEffects(a.settings.Effects, false)
+	a.pl.SetEffects(a.currentEffects(), false)
 	a.effects.dirty = true
 }
 
@@ -75,7 +75,7 @@ func (a *app) effectsSettle() {
 		return
 	}
 	a.effects.dirty = false
-	a.pl.SetEffects(a.settings.Effects, true)
+	a.pl.SetEffects(a.currentEffects(), true)
 	a.settings.save()
 }
 
@@ -102,8 +102,13 @@ func (a *app) presetLabel() string {
 			return p.label
 		}
 	}
-	if a.settings.EffectsPreset == customPreset {
+	switch a.settings.EffectsPreset {
+	case customPreset:
 		return "自定义"
+	case smartPreset:
+		return "智能音效"
+	case moodPreset:
+		return "情绪调音"
 	}
 	return effectPresets[0].label
 }
@@ -177,23 +182,94 @@ func (a *app) effectsDialog(c *ui.Context) {
 	a.effectsSettle()
 }
 
-// presetCards lays the presets out as cards, three a row.
+// presetCards is the presets' page: effects that choose themselves for
+// each song, the sound placed round the head, and the presets of a kind
+// of music, as cards.
 func (a *app) presetCards(c *ui.Context, colw float32) {
-	ui.Grid(c).Columns(3).GapX(12).GapY(12).Children(func() {
-		for i := range effectPresets {
-			a.presetCard(c, &effectPresets[i], colw)
+	ink := a.inkOn(false)
+	e := &a.settings.Effects
+	section := func(title, note string) {
+		ui.Row(c).Gap(8).AlignItems(ui.End).Margin(4, 0, 0, 0).Children(func() {
+			ui.Text(c, title).FontSize(13.5).FontWeight(600)
+			ui.Text(c, note).FontSize(11.5).TextColor(ink.faint)
+		})
+	}
+	ui.Column(c).Gap(12).Children(func() {
+		section("智能调音", "每首歌自动选择，切歌时平滑过渡")
+		ui.Grid(c).Columns(2).GapX(12).GapY(12).Children(func() {
+			for _, m := range []struct {
+				id, label, desc, from, to string
+				icon                      *ui.SVG
+			}{
+				{smartPreset, "智能音效", "按网易云的曲风自动匹配最合适的预设", "#2563eb", "#7c3aed", iconWand},
+				{moodPreset, "情绪调音", "读取歌曲的情绪标签和歌词，按情绪调音", "#db2777", "#7c2d92", iconHeart},
+			} {
+				chosen := e.On && a.settings.EffectsPreset == m.id
+				desc := m.desc
+				if chosen && a.auto.note != "" {
+					desc = a.auto.note
+				}
+				if a.themedCard(c, m.id, m.label, desc, m.from, m.to, m.icon, chosen, 104) {
+					a.useAuto(m.id)
+				}
+			}
+		})
+		section("空间音效", "戴耳机效果最好，可以和任意预设一起使用")
+		ui.Grid(c).Columns(2).GapX(12).GapY(12).Children(func() {
+			for _, m := range []struct {
+				id, label, desc, from, to string
+				icon                      *ui.SVG
+			}{
+				{player.Spatial8D, "8D 环绕", "声音绕着头部缓缓转圈", "#0891b2", "#1e3a8a", iconFan},
+				{player.Spatial360, "360° 环绕", "像坐在两只音箱前，声音在头外", "#059669", "#134e4a", iconGlobe},
+			} {
+				chosen := e.On && e.Spatial == m.id
+				if a.themedCard(c, "spatial-"+m.id, m.label, m.desc, m.from, m.to, m.icon, chosen, 104) {
+					if e.Spatial == m.id {
+						e.Spatial = ""
+					} else {
+						e.Spatial, e.On = m.id, true
+					}
+					a.effectsChanged()
+				}
+			}
+		})
+		if e.On && e.Spatial == player.Spatial8D {
+			ui.Column(c).Radius(14).Background(ink.text.Alpha(0.05)).Padding(0, 16).Children(func() {
+				period := 16 - 12*e.Orbit
+				a.effectSlider(c, "转速", fmt.Sprintf("约 %.0f 秒转一圈", period), &e.Orbit, ink)
+			})
 		}
+		section("风格预设", "")
+		ui.Grid(c).Columns(3).GapX(12).GapY(12).Children(func() {
+			for i := range effectPresets {
+				p := &effectPresets[i]
+				chosen := e.On && a.settings.EffectsPreset == p.id
+				if a.themedCard(c, "preset-"+p.id, p.label, p.desc, p.from, p.to, p.icon, chosen, 116) {
+					a.usePreset(*p)
+				}
+			}
+		})
 	})
 }
 
-// presetCard is a preset as a card: its colors, its theme, what it is
-// like, and a check while it is chosen.
-func (a *app) presetCard(c *ui.Context, p *effectPreset, w float32) {
-	e := &a.settings.Effects
-	chosen := e.On && a.settings.EffectsPreset == p.id
-	card := ui.ButtonBase(c.Key("preset-"+p.id)).Column().AlignItems(ui.Start).Justify(ui.Start).Height(116).Radius(14).Padding(14, 14).Gap(4).
-		FocusRing(false).Label(p.label).Clip()
-	card.LinearGradient(ui.LinearGradient{From: ui.Hex(p.from), To: ui.Hex(p.to), Angle: 135, Oklab: true})
+// useAuto has the effects choose themselves for each song, by id: by
+// genre, or by mood.
+func (a *app) useAuto(id string) {
+	a.settings.Effects.On = true
+	a.settings.EffectsPreset = id
+	a.auto.song, a.auto.fx, a.auto.note = 0, nil, ""
+	a.autoFollow()
+	a.effectsChanged()
+}
+
+// themedCard is a card of the effects: its colors, its theme drawn large
+// and faint off the corner, what it is, and a check while it is chosen.
+// It reports a click.
+func (a *app) themedCard(c *ui.Context, key, label, desc, from, to string, icon *ui.SVG, chosen bool, height float32) bool {
+	card := ui.ButtonBase(c.Key(key)).Column().AlignItems(ui.Start).Justify(ui.Start).Height(height).Radius(14).Padding(14, 14).Gap(4).
+		FocusRing(false).Label(label).Clip()
+	card.LinearGradient(ui.LinearGradient{From: ui.Hex(from), To: ui.Hex(to), Angle: 135, Oklab: true})
 	edge := ui.Transparent
 	if chosen {
 		edge = white
@@ -208,22 +284,19 @@ func (a *app) presetCard(c *ui.Context, p *effectPreset, w float32) {
 	}
 	card.AnimatePose(pose, ui.Snappy)
 	if card.Hovered() || chosen {
-		card.Shadow(0, 10, 24, -8, ui.Hex(p.to).Alpha(0.7))
+		card.Shadow(0, 10, 24, -8, ui.Hex(to).Alpha(0.7))
 	}
 	card.Children(func() {
-		// The theme, large and faint, off the corner.
-		ui.Icon(c, p.icon).Absolute().Right(-10).Top(-6).Size(78, 78).TextColor(white.Alpha(0.16))
-		ui.Text(c, p.label).FontSize(16).FontWeight(700).TextColor(white)
-		ui.Text(c, p.desc).FontSize(11.5).TextColor(white.Alpha(0.82)).MaxLines(2).LineHeight(1.35).Shrink(1).MinWidth(0)
+		ui.Icon(c, icon).Absolute().Right(-10).Top(-6).Size(78, 78).TextColor(white.Alpha(0.16))
+		ui.Text(c, label).FontSize(16).FontWeight(700).TextColor(white)
+		ui.Text(c, desc).FontSize(11.5).TextColor(white.Alpha(0.85)).MaxLines(2).LineHeight(1.35).Shrink(1).MinWidth(0).Margin(0, 26, 0, 0)
 		if chosen {
 			ui.Box(c).Absolute().Top(10).Right(10).Size(20, 20).Radius(999).Background(white).Center().Children(func() {
-				ui.Icon(c, iconCheck).Size(12, 12).TextColor(ui.Hex(p.to))
+				ui.Icon(c, iconCheck).Size(12, 12).TextColor(ui.Hex(to))
 			})
 		}
 	})
-	if card.Clicked() {
-		a.usePreset(*p)
-	}
+	return card.Clicked()
 }
 
 // eqHeight is how tall the equalizer's sliders run.

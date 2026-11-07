@@ -70,6 +70,10 @@ func TestEffectsFrames(t *testing.T) {
 			a.settings.EffectsPreset = customPreset
 			a.effects.open = true
 			a.effects.page = page
+			if page == 0 {
+				a.settings.EffectsPreset, a.auto.note = smartPreset, "已识别曲风：流行-华语流行"
+				a.settings.Effects.Spatial, a.settings.Effects.Orbit = "8d", 0.5
+			}
 			a.settings.Effects.Treble, a.settings.Effects.Depth, a.settings.Effects.Room = -0.3, 0.4, "hall"
 			tt := ui.NewTester(a.view, 1180, 780)
 			tt.SetDark(dark)

@@ -57,6 +57,7 @@ type Player struct {
 	curSpeed  float64  // the speed the track playing plays at
 	heardGen  int      // the load whose listening was told, so it is told once
 	fx        atomic.Pointer[Effects] // the effects, which every track's sound goes through
+	fxGlide   atomic.Bool             // the effects asked for glide to what they are
 
 	queue   []netease.Track
 	order   []int // the queue's indices in play order: shuffled or not
@@ -800,7 +801,7 @@ func (p *Player) loadAttempt(at, skipped int, play bool, from time.Duration, dir
 			p.gain = normGain(info)
 			p.stretcher = newStretch(checked, p.speedOf(&t))
 			p.curSpeed = p.stretcher.speed
-			p.out = audio.NewPlayer(newShaper(p.stretcher, &p.fx))
+			p.out = audio.NewPlayer(newShaper(p.stretcher, &p.fx, &p.fxGlide))
 			// From its middle, as a session picked up again, it fades in.
 			level := 1.0
 			if p.pending > 0 {

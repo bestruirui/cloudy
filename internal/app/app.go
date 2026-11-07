@@ -143,6 +143,7 @@ type app struct {
 	volumeOpen bool // the volume popover of the player bar shows
 	volumeHover hoverOpen // how the pointer opened it, and when it last was over it
 	effects     effectsView // the pane of the sound effects
+	auto        autoState   // the effects chosen for the song playing
 	mutedFrom  float64
 
 	rowBars barState
@@ -310,7 +311,7 @@ func Run() error {
 		a.art = newArtCache(a.post)
 		a.pl = player.New(a.post)
 		a.pl.PodcastSpeed = a.settings.PodcastSpeed
-		a.pl.SetEffects(a.settings.Effects, false)
+		a.pl.SetEffects(a.currentEffects(), false)
 		a.pl.Quality = func() string { return a.settings.Quality }
 		a.pl.Normalize = func() bool { return a.settings.Normalize }
 		a.pl.Cache = newSongCache(a.settings.CacheMB)
@@ -321,6 +322,7 @@ func Run() error {
 		}
 		a.pl.Changed = func() {
 			a.keepSession()
+			a.autoFollow()
 			a.syncCaptions()
 		}
 		a.volume = a.settings.Volume

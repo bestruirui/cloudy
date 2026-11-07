@@ -14,7 +14,7 @@ func energy(t *testing.T, hz float64, e *Effects) float64 {
 	if e != nil {
 		fx.Store(e)
 	}
-	s := newShaper(&tone{hz: hz, rate: 44100, frames: 44100}, &fx)
+	s := newShaper(&tone{hz: hz, rate: 44100, frames: 44100}, &fx, nil)
 	buf := make([]float32, 2*44100)
 	n, _ := s.Read(buf)
 	sum := 0.0
@@ -54,7 +54,7 @@ func TestEffects(t *testing.T) {
 	}
 	var fx atomic.Pointer[Effects]
 	fx.Store(&loud)
-	s := newShaper(&tone{hz: 60, rate: 44100, frames: 44100}, &fx)
+	s := newShaper(&tone{hz: 60, rate: 44100, frames: 44100}, &fx, nil)
 	buf := make([]float32, 2*44100)
 	n, _ := s.Read(buf)
 	for _, v := range buf[:n] {
@@ -76,7 +76,7 @@ func TestVocalAndLoudness(t *testing.T) {
 	var fx atomic.Pointer[Effects]
 	fx.Store(&loud)
 	// A tone at a tenth of full scale, about -26 dBFS RMS.
-	s := newShaper(&scaled{quiet, 0.2}, &fx)
+	s := newShaper(&scaled{quiet, 0.2}, &fx, nil)
 	buf := make([]float32, 2*44100)
 	n, _ := s.Read(buf)
 	peak := float32(0)
@@ -119,7 +119,7 @@ func TestTrebleBassRoom(t *testing.T) {
 		var fx atomic.Pointer[Effects]
 		fx.Store(&e)
 		// Half a second of tone, then silence.
-		s := newShaper(&tone{hz: 440, rate: 44100, frames: 22050}, &fx)
+		s := newShaper(&tone{hz: 440, rate: 44100, frames: 22050}, &fx, nil)
 		buf := make([]float32, 2*22050)
 		s.Read(buf)
 		for _, v := range buf {
@@ -138,5 +138,103 @@ func TestTrebleBassRoom(t *testing.T) {
 		if ring < 0.001 {
 			t.Errorf("%s: nothing rang after the sound stopped", room.Label)
 		}
+	}
+}
+
+// earEnergy is each ear's energy over frames [from, to) of out.
+func earEnergy(out []float32, from, to int) (l, r float64) {
+	for i := from; i < to; i++ {
+		l += float64(out[2*i]) * float64(out[2*i])
+		r += float64(out[2*i+1]) * float64(out[2*i+1])
+	}
+	return l, r
+}
+
+// shaped runs a decoder through e, for frames.
+func shaped(d interface {
+	SampleRate() int
+	Channels() int
+	Read([]float32) (int, error)
+	SetPosition(int64) error
+	Len() int64
+}, e Effects, frames int) []float32 {
+	var fx atomic.Pointer[Effects]
+	fx.Store(&e)
+	s := newShaper(d, &fx, nil)
+	out := make([]float32, 2*frames)
+	for at := 0; at < len(out); {
+		n, err := s.Read(out[at:min(len(out), at+8192)])
+		at += n
+		if err != nil || n == 0 {
+			break
+		}
+	}
+	return out
+}
+
+// 8D takes the sound round the head: a quarter of the way round, it is at
+// the right; three quarters, at the left. 360° sets each side before the
+// listener, so that a sound on the left alone reaches the right ear too.
+func TestSpatial(t *testing.T) {
+	const rate = 44100
+	period := orbitPeriod(1) // 4 s
+	frames := int(period * rate)
+	out := shaped(&tone{hz: 440, rate: rate, frames: int64(frames)}, Effects{On: true, Spatial: Spatial8D, Orbit: 1}, frames)
+	q := frames / 4
+	l1, r1 := earEnergy(out, q-q/4, q+q/4)
+	l3, r3 := earEnergy(out, 3*q-q/4, 3*q+q/4)
+	if r1 < 2*l1 || l3 < 2*r3 {
+		t.Errorf("8D: at a quarter L %.0f R %.0f; at three quarters L %.0f R %.0f", l1, r1, l3, r3)
+	}
+
+	left := &leftOnly{&tone{hz: 440, rate: rate, frames: rate}}
+	out = shaped(left, Effects{On: true, Spatial: Spatial360}, rate)
+	l, r := earEnergy(out, rate/4, rate)
+	if r < l*0.1 || r > l {
+		t.Errorf("360°: a sound on the left reached the ears L %.0f R %.0f", l, r)
+	}
+	for _, v := range out {
+		if v > 1 || v < -1 {
+			t.Fatalf("360°: a sample at %v", v)
+		}
+	}
+}
+
+// leftOnly is a decoder with its right channel silent.
+type leftOnly struct{ *tone }
+
+func (d *leftOnly) Read(dst []float32) (int, error) {
+	n, err := d.tone.Read(dst)
+	for i := 1; i < n; i += 2 {
+		dst[i] = 0
+	}
+	return n, err
+}
+
+// Effects chosen for a song glide in: halfway through the glide, a band
+// lifted is lifted about halfway, not at once nor not at all.
+func TestGlide(t *testing.T) {
+	const rate = 44100
+	var fx atomic.Pointer[Effects]
+	var glide atomic.Bool
+	fx.Store(&Effects{On: true})
+	s := newShaper(&tone{hz: 1000, rate: rate, frames: 10 * rate}, &fx, &glide)
+	buf := make([]float32, 2*rate/2)
+	s.Read(buf) // settled, flat
+	flatE, _ := earEnergy(buf, rate/4-2000, rate/4+2000)
+	var lift Effects
+	lift.On, lift.Bands[5], lift.Bands[0] = true, 12, 12
+	glide.Store(true)
+	fx.Store(&lift)
+	// The glide's first second: its middle.
+	s.Read(buf)
+	s.Read(buf)
+	mid, _ := earEnergy(buf, rate/4-2000, rate/4+2000)
+	for range 6 {
+		s.Read(buf)
+	}
+	end, _ := earEnergy(buf, rate/4-2000, rate/4+2000)
+	if !(mid > flatE*1.05 && mid < end*0.95) {
+		t.Errorf("energy flat %.0f, mid-glide %.0f, after %.0f", flatE, mid, end)
 	}
 }
