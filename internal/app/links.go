@@ -18,5 +18,5 @@ var updateMirrors = []string{
 var manualDownloadURL = ""
 
 // feedbackBilibiliUID is the author's Bilibili account, whose private
-// messages feedback goes to: 0 until it is set.
-var feedbackBilibiliUID int64 = 0
+// messages feedback goes to.
+var feedbackBilibiliUID int64 = 229474180

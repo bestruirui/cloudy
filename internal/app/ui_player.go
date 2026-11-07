@@ -200,16 +200,31 @@ func (a *app) tickTimes(c *ui.Context) {
 
 // volumeButton is the speaker, which opens the volume in a popover above
 // it, as an AppKit popover: a native slider standing up, the volume in
-// percent over it. The wheel over the speaker turns it up and down
-// without opening it.
+// percent over it. It opens as the pointer comes over the speaker, which
+// shows that the wheel there turns it, and closes a moment after the
+// pointer has left both; a click keeps it open until a click elsewhere.
 func (a *app) volumeButton(c *ui.Context, color ui.Color) {
 	b := iconButton(c.Key("volume-button"), volumeIcon(a.volume), 16, color, "音量")
+	h := &a.volumeHover
+	now := c.Now()
 	if b.Clicked() {
-		a.volumeOpen = !a.volumeOpen
+		// Opened by the pointer, a click keeps it; else it opens or closes.
+		if a.volumeOpen && h.byHover {
+			h.byHover = false
+		} else {
+			a.volumeOpen, h.byHover = !a.volumeOpen, false
+		}
+	}
+	over := b.Hovered()
+	if over && !a.volumeOpen {
+		a.volumeOpen, h.byHover = true, true
 	}
 	b.HandleInput(func(ev ui.InputEvent) bool { return a.scrollVolume(ev) })
 	pop := popoverColors(a.pal.dark)
 	ui.PopoverBase(c.Key("volume-popover"), b, &a.volumeOpen, func(panel ui.Element) {
+		if panel.Hovered() {
+			h.at = c.Now()
+		}
 		const arrow = 7
 		a.pane(panel, 26, false)
 		panel.AttachTo(b, ui.AnchorTop, ui.AnchorBottom).Margin(0, 0, arrow+3, 0).Width(52).Padding(11, 0, 12, 0).
@@ -235,7 +250,32 @@ func (a *app) volumeButton(c *ui.Context, color ui.Color) {
 		ui.Textf(c, "%d%%", int(a.volume*100+0.5)).FontSize(11).FontWeight(500).FontFeatures("tnum").TextColor(a.pal.muted)
 		a.nativeVolumeSlider(c, pop)
 	})
+	// Opened by the pointer, it closes a moment after the pointer left the
+	// speaker and the popover both, which the panel says as it is built.
+	if over {
+		h.at = now
+	}
+	if a.volumeOpen && h.byHover {
+		if left := now.Sub(h.at); left >= volumeLinger {
+			a.volumeOpen, h.byHover = false, false
+		} else {
+			c.After(volumeLinger - left)
+		}
+	}
 }
+
+// hoverOpen is how a popover the pointer opens stays open: whether the
+// pointer opened it rather than a click, and when the pointer was last
+// over it or what opened it.
+type hoverOpen struct {
+	byHover bool
+	at      time.Time
+}
+
+// volumeLinger is how long the volume stays after the pointer left it, for
+// a pointer passing from the speaker up to the slider, or out a moment.
+const volumeLinger = 350 * time.Millisecond
+
 
 // popover holds the colors of a popover as AppKit draws them.
 type popover struct {
@@ -254,7 +294,12 @@ func popoverColors(dark bool) popover {
 func (a *app) nativeVolumeSlider(c *ui.Context, pop popover) {
 	const knob, track = 20, 4
 	s := ui.SliderBase(c.Key("volume"), &a.volume, 0, 1).Vertical().Size(knob+8, 124).PaddingY(knob / 2).
-		Step(0.01).AutoFocus().FocusRing(false).Label("音量")
+		Step(0.01).FocusRing(false).Label("音量")
+	// Opened by a click, the keys move it; opened by the pointer passing,
+	// it leaves the keys where they were, as in the search field.
+	if !a.volumeHover.byHover {
+		s.AutoFocus()
+	}
 	if s.Changed() {
 		a.pl.SetVolume(a.volume)
 	}

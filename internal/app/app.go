@@ -140,6 +140,7 @@ type app struct {
 	scrubbing  bool
 	volume     float64
 	volumeOpen bool // the volume popover of the player bar shows
+	volumeHover hoverOpen // how the pointer opened it, and when it last was over it
 	mutedFrom  float64
 
 	rowBars barState
