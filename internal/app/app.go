@@ -301,7 +301,6 @@ func Run() error {
 	a.useUpdater()
 	mygo.App.WhenReady(func() {
 		a.settings = loadSettings()
-		setFrameRate(a.settings.FrameRate)
 		a.applyOutput()
 		a.settings.applyAppearance()
 		a.loadFont()

@@ -154,7 +154,6 @@ const (
 // label steps.
 const dailyRate = 60
 
-
 // recordOut is how far right of its sleeve's middle the record's is, as
 // far out as out.
 func recordOut(out float32) float32 { return 30 + 46*out }
