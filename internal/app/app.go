@@ -170,6 +170,8 @@ type app struct {
 	keysTaken             int               // how many global keys other apps hold
 	miniScrub             scrubState        // the progress of the mini window
 	morph                 floatMorph        // the player on its way to or from it
+	deskBtn               ui.Rect           // the player bar's button of the desktop lyrics, while it shows
+	deskFly               deskFlight        // the desktop lyrics on their way out of it or back
 	sleepTimer            *time.Timer       // pauses the music once the time set is up
 	sleepAt               time.Time         // when
 	sleepMinutes          int               // what the listener chose

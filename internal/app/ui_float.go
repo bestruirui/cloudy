@@ -90,6 +90,10 @@ func (a *app) applyDeskLyrics() {
 	}
 	a.deskWin.SetIgnoreMouseEvents(s.DeskLyrics && s.DeskLock)
 	if s.DeskLyrics {
+		if a.deskFly.win != nil && a.deskFly.opening {
+			// Out of the button: the window comes in as the lyrics land.
+			a.deskWin.SetOpacity(0)
+		}
 		a.deskWin.Show()
 		// A flyout shows by its anchor: from there, where it was left, and
 		// above all, which it isn't by itself once another app comes up.
@@ -114,8 +118,20 @@ func (a *app) dropFloat(slot **mygo.Window) {
 
 // toggleDeskLyrics turns them on or off, from wherever that is offered.
 func (a *app) toggleDeskLyrics() {
-	a.settings.DeskLyrics = !a.settings.DeskLyrics
-	a.applyDeskLyrics()
+	s := &a.settings
+	s.DeskLyrics = !s.DeskLyrics
+	switch {
+	case s.DeskLyrics:
+		// Out of the button, to where the window goes.
+		x, y := spot(s.DeskX, s.DeskY, deskW, deskH, 40)
+		a.startDeskFly(true, mygo.Rectangle{X: x, Y: y, Width: deskW, Height: deskH})
+		a.applyDeskLyrics()
+	case a.deskWin != nil && a.startDeskFly(false, a.deskWin.Bounds()):
+		// It goes back into the button first, and its window after.
+		a.deskWin.SetIgnoreMouseEvents(true)
+	default:
+		a.applyDeskLyrics()
+	}
 	a.changed()
 }
 
@@ -455,7 +471,9 @@ func (a *app) morphView(c *ui.Context) {
 		}
 	} else {
 		move = clamp01((t - 0.14) / 0.86)
-		a.win.SetOpacity(float64(easeRange(t, 0.2, 1)))
+		// The window is all there before the capsule lands, for the bar's
+		// glass to be there to melt into.
+		a.win.SetOpacity(float64(easeRange(t, 0.2, 0.72)))
 		if !m.handed {
 			a.miniWin.SetOpacity(float64(1 - easeRange(t, 0, 0.2)))
 			if t >= 0.2 {
@@ -467,10 +485,20 @@ func (a *app) morphView(c *ui.Context) {
 	}
 	k := 1 - (1-move)*(1-move)*(1-move)
 	box, disc := lerpRect(m.box[0], m.box[1], k), lerpRect(m.disc[0], m.disc[1], k)
+	// Back on the bar, the solid capsule clears into the bar's glass under
+	// it: its fill thins first, its edge and shadow after, and its cover
+	// last, onto the bar's own.
+	fill, edge, cover := float32(1), float32(1), float32(1)
+	if !m.toMini {
+		fill = 1 - easeRange(move, 0.5, 0.92)
+		edge = 1 - easeRange(move, 0.7, 1)
+		cover = 1 - easeRange(move, 0.8, 1)
+	}
 	ui.Box(c.Key("capsule")).Absolute().Left(box.X).Top(box.Y).Size(box.W, box.H).Radius(lerp(m.corner[0], m.corner[1], k)).
-		Background(a.miniSurface()).Border(1, white.Alpha(0.14)).Shadow(0, 12, 30, -10, ui.RGBA(0, 0, 0, 0.45))
-	if tr := a.pl.Current(); tr != nil {
-		a.barDisc(c, tr, disc.W, discSmooth).Absolute().Left(disc.X).Top(disc.Y)
+		Background(a.miniSurface().Alpha(fill)).Border(1, white.Alpha((0.14+0.12*(1-fill))*edge)).
+		Shadow(0, 12, 30, -10, ui.RGBA(0, 0, 0, 0.45*fill))
+	if tr := a.pl.Current(); tr != nil && cover > 0 {
+		a.barDisc(c, tr, disc.W, discSmooth).Absolute().Left(disc.X).Top(disc.Y).Opacity(cover)
 	}
 	c.AnimationFrame()
 	if t < 1 {

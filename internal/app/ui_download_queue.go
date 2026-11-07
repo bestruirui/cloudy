@@ -168,7 +168,7 @@ func (a *app) downloadQueueDialog(c *ui.Context) {
 		return
 	}
 	entries := a.downloadQueueEntries()
-	pal, ink := a.pal, a.inkOn(false)
+	ink := a.inkOn(false)
 	w, h := c.Size()
 	active, waiting, failed := 0, len(a.downloadQueue), len(a.downloadFailed)
 	if a.downloadJob != nil {
@@ -185,60 +185,46 @@ func (a *app) downloadQueueDialog(c *ui.Context) {
 		sub = "当前没有下载任务"
 	}
 	a.dialog(c, "download-queue", 0.35, &q.open, func(panel ui.Element) {
-		panel.Width(min(680, w-80)).Height(min(560, h-80)).TextColor(ink.text)
+		// As tall as what it lists, up to what the window has room for:
+		// three songs are not lost in a tall empty pane.
+		tall := min(560, h-80)
+		panel.Width(min(680, w-80)).Height(min(tall, max(300, 170+float32(len(entries))*66))).TextColor(ink.text)
 		a.pane(panel, 26, false)
 		panel.Children(func() {
-			ui.Column(c).Grow(1).Padding(20).Gap(12).Children(func() {
-				ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-					ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(3).Children(func() {
-						ui.Text(c, "下载队列").FontSize(18).FontWeight(700)
-						ui.Text(c, sub).FontSize(12).TextColor(ink.muted)
-					})
-					if failed > 0 && pillButton(c.Key("dq-retry"), iconReload, "全部重试", ink.hover, ink.text).Clicked() {
-						a.retryDownloads()
-					}
-					if iconButton(c.Key("dq-close"), iconX, 16, ink.muted, "关闭").Clicked() {
-						q.open = false
-					}
-				})
+			dialogHeader(c, ink, "下载队列", sub, func() { q.open = false })
+			fill, edge := a.cardColors()
+			list := ui.Column(c).Grow(1).Shrink(1).MinHeight(0).Margin(0, 28).Radius(20).Background(fill).Border(0.5, edge).Clip()
+			list.Children(func() {
 				if len(entries) == 0 {
-					ui.Box(c).Grow(1).Center().Children(func() {
+					ui.Column(c).Grow(1).Center().Gap(8).Children(func() {
+						ui.Icon(c, iconDownload).Size(26, 26).TextColor(ink.faint)
 						ui.Text(c, "下载队列是空的").FontSize(13).TextColor(ink.muted)
 					})
-				} else {
-					ui.List(c.Key("download-queue-list"), &q.list, len(entries), func(i int) {
-						a.downloadQueueRow(c, entries[i], i)
-					}).Grow(1).Padding(0, 2, 0, 2)
+					return
 				}
-				chosen := a.downloadQueueChosen(entries)
-				ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-					ui.Textf(c, "共 %d 项，已选 %d 项", len(entries), chosen).FontSize(12).TextColor(ink.muted).Grow(1)
-					label := "全选"
-					if a.downloadQueueAll(entries) {
-						label = "取消全选"
-					}
-					all := pillButton(c.Key("dq-all"), nil, label, ink.hover, ink.text)
-					if len(entries) == 0 {
-						all.Disabled(true).Opacity(0.5)
-					}
-					if all.Clicked() {
-						a.selectAllDownloads(entries)
-					}
-					cancel := pillButton(c.Key("dq-cancel"), iconX, "取消所选下载", pal.accent, pal.onAccent)
-					if chosen == 0 {
-						cancel.Disabled(true).Opacity(0.5)
-					}
-					if cancel.Clicked() {
-						a.cancelSelectedDownloads()
-					}
-					clear := pillButton(c.Key("dq-clear"), iconX, "全部取消", pal.hover.Over(pal.bg), pal.text)
-					if len(entries) == 0 {
-						clear.Disabled(true).Opacity(0.5)
-					}
-					if clear.Clicked() {
-						a.clearDownloadQueue()
-					}
-				})
+				ui.List(c.Key("download-queue-list"), &q.list, len(entries), func(i int) {
+					a.downloadQueueRow(c, entries[i], i)
+				}).Grow(1).Padding(6)
+			})
+			chosen := a.downloadQueueChosen(entries)
+			dialogFooter(c, func() {
+				ui.Textf(c, "共 %d 项，已选 %d 项", len(entries), chosen).FontSize(12).TextColor(ink.muted).Grow(1)
+				if failed > 0 && settingButton(c.Key("dq-retry"), ink, "全部重试", iconReload, false, false).Clicked() {
+					a.retryDownloads()
+				}
+				label := "全选"
+				if a.downloadQueueAll(entries) {
+					label = "取消全选"
+				}
+				if settingButton(c.Key("dq-all"), ink, label, nil, len(entries) == 0, false).Clicked() {
+					a.selectAllDownloads(entries)
+				}
+				if settingButton(c.Key("dq-cancel"), ink, "取消所选下载", nil, chosen == 0, true).Clicked() {
+					a.cancelSelectedDownloads()
+				}
+				if settingButton(c.Key("dq-clear"), ink, "全部取消", nil, len(entries) == 0, true).Clicked() {
+					a.clearDownloadQueue()
+				}
 			})
 		})
 	})
@@ -247,7 +233,7 @@ func (a *app) downloadQueueDialog(c *ui.Context) {
 func (a *app) downloadQueueRow(c *ui.Context, e downloadQueueEntry, i int) {
 	pal, ink := a.pal, a.inkOn(false)
 	selected := a.queueView.selected[e.track.ID]
-	row := ui.CheckboxBase(c.Key(i), &selected).Height(64).PaddingX(10).Gap(12).Radius(14).
+	row := ui.CheckboxBase(c.Key(i), &selected).Height(62).PaddingX(12).Gap(12).Radius(14).
 		AlignItems(ui.Center).FocusRing(false).Label(e.track.Name)
 	bg := ui.Transparent
 	if selected {

@@ -38,6 +38,8 @@ func (a *app) view(c *ui.Context) {
 	c.SetTheme(&t)
 
 	a.shortcuts(c)
+	// The bar says where its button is, if it shows it this frame.
+	a.deskBtn = ui.Rect{}
 
 	if c.Vibrancy() {
 		c.Root().Background(ui.Transparent)

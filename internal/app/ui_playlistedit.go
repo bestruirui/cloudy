@@ -348,8 +348,8 @@ func (a *app) playlistNameDialog(c *ui.Context) {
 	p := a.pal
 	d := &a.naming
 	a.dialog(c, "playlist-name", 0.35, &d.open, func(panel ui.Element) {
-		a.pane(panel, 20, false)
-		panel.Width(360).Padding(24).Gap(16)
+		a.pane(panel, 26, false)
+		panel.Width(400).TextColor(a.inkOn(false).text)
 		title, action := "新建歌单", "创建"
 		if d.rename != 0 {
 			title, action = "重命名歌单", "保存"
@@ -357,20 +357,19 @@ func (a *app) playlistNameDialog(c *ui.Context) {
 		if d.busy {
 			action = "正在创建…"
 		}
-		ui.Text(c, title).FontSize(17).FontWeight(700)
-		in := ui.TextInput(c.Key("name"), &d.name).Placeholder("歌单名称").Label("歌单名称").FontSize(14).AutoFocus()
-		if in.Submitted() {
-			a.submitName()
-		}
-		ui.Row(c).Gap(10).Justify(ui.End).Children(func() {
-			if pillButton(c.Key("cancel"), nil, "取消", p.hover.Over(p.bg), p.text).Clicked() {
+		ink := a.inkOn(false)
+		dialogHeader(c, ink, title, "", func() { d.open = false })
+		ui.Column(c).Padding(0, 28).Children(func() {
+			in := ui.TextInput(c.Key("name"), &d.name).Placeholder("歌单名称").Label("歌单名称").FontSize(14).AutoFocus()
+			if in.Submitted() {
+				a.submitName()
+			}
+		})
+		dialogFooter(c, func() {
+			if settingButton(c.Key("cancel"), ink, "取消", nil, false, false).Clicked() {
 				d.open = false
 			}
-			ok := pillButton(c.Key("ok"), nil, action, p.accent, p.onAccent)
-			if strings.TrimSpace(d.name) == "" {
-				ok.Disabled(true).Opacity(0.5)
-			}
-			if ok.Clicked() {
+			if primaryButton(c.Key("ok"), action, nil, p, strings.TrimSpace(d.name) == "" || d.busy).Clicked() {
 				a.submitName()
 			}
 		})
@@ -380,18 +379,17 @@ func (a *app) playlistNameDialog(c *ui.Context) {
 // deletePlaylistDialog asks whether to delete a playlist, which can't be
 // undone.
 func (a *app) deletePlaylistDialog(c *ui.Context) {
-	p := a.pal
 	d := &a.deleting
 	a.dialog(c, "playlist-delete", 0.35, &d.open, func(panel ui.Element) {
-		a.pane(panel, 20, false)
-		panel.Width(360).Padding(24).Gap(8)
-		ui.Text(c, "删除歌单").FontSize(17).FontWeight(700)
-		ui.Text(c, "确定删除歌单“"+d.name+"”吗？删除后无法恢复。").FontSize(13).TextColor(p.muted).LineHeight(1.45)
-		ui.Row(c).Gap(10).Justify(ui.End).Margin(8, 0, 0, 0).Children(func() {
-			if pillButton(c.Key("cancel"), nil, "取消", p.hover.Over(p.bg), p.text).Clicked() {
+		a.pane(panel, 26, false)
+		ink := a.inkOn(false)
+		panel.Width(400).TextColor(ink.text)
+		dialogHeader(c, ink, "删除歌单", "确定删除歌单“"+d.name+"”吗？删除后无法恢复。", func() { d.open = false })
+		dialogFooter(c, func() {
+			if settingButton(c.Key("cancel"), ink, "取消", nil, false, false).Clicked() {
 				d.open = false
 			}
-			if pillButton(c.Key("ok"), nil, "删除", p.accent, p.onAccent).Clicked() {
+			if dangerButton(c.Key("ok"), "删除", iconTrash, false).Clicked() {
 				a.deleteChosen()
 			}
 		})

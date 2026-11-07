@@ -44,6 +44,10 @@ func (a *app) feedbackToBilibili() {
 }
 
 // feedbackIntro says where what is written goes.
+// feedbackMailOpen says whether feedback can go by mail. It cannot for now:
+// the mail is off until it is mended, and the Bilibili messages are the way.
+var feedbackMailOpen = false
+
 func feedbackIntro() string {
 	if feedbackBilibiliUID == 0 {
 		return "问题、想法或建议都可以写在这里，会连同图片和软件版本一起发给nya"

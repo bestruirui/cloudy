@@ -129,23 +129,21 @@ func (a *app) downloadDeleteDialog(c *ui.Context) {
 	if !d.open {
 		return
 	}
-	p := a.pal
 	a.dialog(c, "download-delete", 0.35, &d.open, func(panel ui.Element) {
-		panel.Width(400).Padding(24).Gap(10)
+		ink := a.inkOn(false)
+		panel.Width(400).TextColor(ink.text)
 		a.pane(panel, 26, false)
 		panel.Children(func() {
-			ui.Text(c, "从本地删除").FontSize(17).FontWeight(700)
-			body := fmt.Sprintf("确定删除“%s”的本地文件吗？", d.track.Name)
+			body := fmt.Sprintf("确定删除“%s”的本地文件吗？删除后需要重新下载。", d.track.Name)
 			if len(d.items) > 0 {
-				body = fmt.Sprintf("确定删除选中的 %d 首本地文件吗？", len(d.items))
+				body = fmt.Sprintf("确定删除选中的 %d 首本地文件吗？删除后需要重新下载。", len(d.items))
 			}
-			ui.Text(c, body).FontSize(13).TextColor(p.muted).LineHeight(1.45)
-			ui.Text(c, "删除后需要重新下载。").FontSize(12).TextColor(p.faint)
-			ui.Row(c).Gap(10).Justify(ui.End).Margin(8, 0, 0, 0).Children(func() {
-				if pillButton(c.Key("cancel"), nil, "取消", p.hover.Over(p.bg), p.text).Clicked() {
+			dialogHeader(c, ink, "从本地删除", body, func() { d.open = false })
+			dialogFooter(c, func() {
+				if settingButton(c.Key("cancel"), ink, "取消", nil, false, false).Clicked() {
 					d.open = false
 				}
-				if pillButton(c.Key("delete"), iconTrash, "删除", p.accent, p.onAccent).Clicked() {
+				if dangerButton(c.Key("delete"), "删除", iconTrash, false).Clicked() {
 					a.deleteDownload()
 				}
 			})

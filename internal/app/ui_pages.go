@@ -315,16 +315,6 @@ func (a *app) playlistHeader(c *ui.Context, pl *netease.Playlist) {
 						if pillButton(c.Key("save"), icon, label, p.hover.Over(p.bg), p.text).Clicked() {
 							a.toggleSaved(*pl)
 						}
-						details := iconButton(c.Key("details"), iconMore, 18, p.muted, "歌单详情")
-						if details.Clicked() {
-							a.menuBelow(details, true, a.playlistDetailsMenu(pl), a.playlistDetailsHead(pl))
-						}
-					}
-					if mine := a.editable(pl.ID); mine != nil {
-						more := iconButton(c.Key("more"), iconMore, 18, p.muted, "更多")
-						if more.Clicked() {
-							a.menuBelow(more, false, a.playlistMenu(mine), nil)
-						}
 					}
 					switch {
 					case pl.SpecialType != 5:
@@ -341,10 +331,27 @@ func (a *app) playlistHeader(c *ui.Context, pl *netease.Playlist) {
 							a.startHeartMode()
 						}
 					}
-					if pl.SpecialType == 5 {
-						details := iconButton(c.Key("details"), iconMore, 18, p.muted, "歌单详情")
-						if details.Clicked() {
-							a.menuBelow(details, true, a.playlistDetailsMenu(pl), a.playlistDetailsHead(pl))
+					// One ⋯, with what the listener can do to the playlist and
+					// what there is to know of it, rather than two side by side.
+					details := a.savable(pl) || pl.SpecialType == 5
+					mine := a.editable(pl.ID)
+					if details || mine != nil {
+						label := "歌单详情"
+						if mine != nil {
+							label = "更多"
+						}
+						more := iconButton(c.Key("more"), iconMore, 18, p.muted, label)
+						if more.Clicked() {
+							var groups [][]menuAction
+							var head func(*ui.Context, paneInk)
+							if mine != nil {
+								groups = append(groups, a.playlistMenu(mine)...)
+							}
+							if details {
+								groups = append(groups, a.playlistDetailsMenu(pl)...)
+								head = a.playlistDetailsHead(pl)
+							}
+							a.menuBelow(more, false, groups, head)
 						}
 					}
 				})
@@ -476,10 +483,12 @@ func (a *app) trackRows(c *ui.Context, tracks []netease.Track, covers bool, head
 				})
 			})
 			if wide {
-				// Faint until the row is looked at: the song is what is read.
-				shade := p.faint
+				// As quiet as the artists under the title, a column of the
+				// list rather than a word floating in it; brighter as the row
+				// is looked at.
+				shade := p.muted.Alpha(0.85)
 				if hovered {
-					shade = p.muted
+					shade = p.text.Alpha(0.85)
 				}
 				album := ui.RichText(c).Grow(2).Basis(0).MinWidth(0).FontSize(12.5).TextColor(shade).SingleLine()
 				album.Children(func() {

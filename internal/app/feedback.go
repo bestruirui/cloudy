@@ -83,7 +83,11 @@ func (a *app) feedbackCard(c *ui.Context, ink paneInk) {
 			}
 		}
 		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-			add := settingButton(c.Key("feedback-add"), ink, "添加图片", iconPlus, f.sending || len(f.images) >= feedbackImages, false)
+			// Pictures go with the mail, and only with it.
+			add := settingButton(c.Key("feedback-add"), ink, "添加图片", iconPlus, !feedbackMailOpen || f.sending || len(f.images) >= feedbackImages, false)
+			if !feedbackMailOpen {
+				add.Tooltip("图片随邮件发送，邮件发送暂未开放")
+			}
 			if add.Clicked() {
 				a.pickFeedbackImages()
 			}
@@ -105,7 +109,9 @@ func (a *app) feedbackCard(c *ui.Context, ink paneInk) {
 			}
 			// Mail goes through a form some networks cannot reach: the
 			// author's Bilibili messages come first.
-			if settingButton(c.Key("feedback-send"), ink, "用邮件发送", nil, f.sending || empty, false).Clicked() {
+			if !feedbackMailOpen {
+				settingButton(c.Key("feedback-send"), ink, "用邮件发送 · 未开放", nil, true, false).Tooltip("邮件发送暂未开放，修好后再上线")
+			} else if settingButton(c.Key("feedback-send"), ink, "用邮件发送", nil, f.sending || empty, false).Clicked() {
 				a.sendFeedback()
 			}
 			if ui.PrimaryButton(c.Key("feedback-bilibili"), "发到 B 站私信").Disabled(empty).Clicked() {
@@ -177,7 +183,7 @@ func (a *app) addFeedbackImages(loaded []feedbackImage, broken bool) {
 func (a *app) sendFeedback() {
 	f := &a.feedback
 	text := strings.TrimSpace(f.text)
-	if f.sending || text == "" {
+	if !feedbackMailOpen || f.sending || text == "" {
 		return
 	}
 	if time.Since(f.sentAt) < feedbackEvery {

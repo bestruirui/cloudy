@@ -364,9 +364,10 @@ func (a *app) downloadBatchItems() []download.Item {
 // batchCheck is the mark of a song chosen in the playlist.
 func (a *app) batchCheck(c *ui.Context, selected bool) {
 	pal := a.pal
-	box := ui.Box(c).Size(18, 18).Radius(4).Border(1, pal.faint)
+	// Round, as every check of the app is.
+	box := ui.Box(c).Size(18, 18).Radius(999).Shrink(0).Center().Border(1.5, pal.faint)
 	if selected {
-		box.Background(pal.accent).Border(1, pal.accent).Children(func() {
+		box.Background(pal.accent).Border(1.5, pal.accent).Children(func() {
 			ui.Icon(c, iconCheck).Size(12, 12).TextColor(pal.onAccent)
 		})
 	}

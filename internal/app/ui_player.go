@@ -596,7 +596,9 @@ func (a *app) playerBar(c *ui.Context) {
 				desk = p.accent
 			}
 			if roomy {
-				if iconButton(c.Key("desk-lyrics"), iconSubtitles, 16, desk, "桌面歌词").Clicked() {
+				deskBtn := iconButton(c.Key("desk-lyrics"), iconSubtitles, 16, desk, "桌面歌词")
+				a.deskBtn = deskBtn.LayoutBounds()
+				if deskBtn.Clicked() {
 					a.toggleDeskLyrics()
 				}
 				if iconButton(c.Key("mini"), iconMiniWin, 16, muted, "迷你窗口").Clicked() {

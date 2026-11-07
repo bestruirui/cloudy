@@ -2,7 +2,6 @@ package app
 
 import (
 	"strings"
-	"time"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -62,7 +61,8 @@ func shortcutDefaults(act shortcutAction) string {
 }
 
 // shortcutEditorDialog lists the global actions and records a new key for
-// one of them. Escape cancels the recording, not the dialog.
+// one of them, in the settings' card and rows, the keys drawn as keycaps.
+// Escape cancels the recording, not the dialog.
 func (a *app) shortcutEditorDialog(c *ui.Context) {
 	s := &a.shortcutSetup
 	if !s.open {
@@ -71,55 +71,32 @@ func (a *app) shortcutEditorDialog(c *ui.Context) {
 	ink := a.inkOn(false)
 	w, h := c.Size()
 	a.dialog(c, "shortcut-editor", 0.35, &s.open, func(panel ui.Element) {
-		panel.Width(min(620, w-80)).Height(min(700, h-56)).TextColor(ink.text)
+		panel.Width(min(640, w-80)).MaxHeight(min(720, h-56)).TextColor(ink.text)
 		a.pane(panel, 26, false)
 		panel.Children(func() {
 			capture := ui.Box(c.Key("shortcut-capture")).Size(1, 1).Focusable().Bind(&s.capture).AutoFocus()
 			capture.HandleInput(func(ev ui.InputEvent) bool { return a.recordShortcut(ev) })
-			ui.Column(c).Grow(1).Padding(24).Gap(16).Children(func() {
-				hint := "选择一个功能录制组合键；按 Esc 取消本次录制"
-				if !a.settings.GlobalKeys {
-					hint = "全局快捷键已关闭；可以先保存组合键，开启后生效"
-				}
-				ui.Row(c).Gap(16).AlignItems(ui.Center).Children(func() {
-					ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(4).Children(func() {
-						ui.Text(c, "自定义全局快捷键").FontSize(20).FontWeight(700)
-						ui.Text(c, hint).FontSize(12.5).TextColor(ink.muted)
-					})
-					if iconButton(c.Key("shortcut-close"), iconX, 16, ink.muted, "关闭").Clicked() {
-						s.open = false
-					}
-				})
-				ui.Scroll(c.Key("shortcut-list")).Grow(1).Shrink(1).TrackScroll(&s.scroll).Padding(8).Gap(8).
-					Radius(18).Background(ink.hover.Alpha(0.05)).Border(0.5, ink.line).Children(func() {
+			hint := "选择一个功能录制组合键；按 Esc 取消本次录制"
+			if !a.settings.GlobalKeys {
+				hint = "全局快捷键已关闭；可以先保存组合键，开启后生效"
+			}
+			dialogHeader(c, ink, "自定义全局快捷键", hint, func() { s.open = false })
+			k := &settingsKit{a: a, c: c, ink: ink}
+			ui.Scroll(c.Key("shortcut-list")).Grow(1).Shrink(1).TrackScroll(&s.scroll).Padding(0, 28, 4, 28).Children(func() {
+				k.card(func() {
 					for _, act := range shortcutActions {
 						recording := s.recording == act.id
-						row := ui.Row(c).Height(56).Shrink(0).PaddingX(12).Gap(14).Radius(13).AlignItems(ui.Center)
-						bg := ui.Transparent
-						if row.Hovered() {
-							bg = ink.hover
-						}
-						if recording {
-							bg = ink.press
-						}
-						row.Background(row.AnimateColor("bg", bg, ui.Animation{Duration: 120 * time.Millisecond}))
-						row.Children(func() {
-							ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(3).Children(func() {
-								ui.Text(c, act.label).FontSize(13.5).FontWeight(600)
-								ui.Text(c, shortcutDefaults(act)).FontSize(11.5).TextColor(ink.muted).SingleLine()
-							})
-							key := a.shortcutDisplay(act)
-							keyColor := ink.text
+						k.row(act.label, shortcutDefaults(act), func() {
 							if recording {
-								key, keyColor = "等待按键…", ink.muted
+								ui.Text(c, "按下组合键…").FontSize(12.5).FontWeight(600).TextColor(a.pal.accent)
+							} else {
+								keycaps(c, a.shortcutDisplay(act), ink)
 							}
-							ui.Text(c, key).FontSize(12).FontFeatures("tnum").TextColor(keyColor).
-								Width(180).TextAlign(ui.End).SingleLine().Shrink(0)
 							label := "录制"
 							if recording {
 								label = "取消"
 							}
-							if pillButton(c.Key("record-"+act.id), nil, label, ink.text.Alpha(0.08), ink.text).Width(80).Justify(ui.Center).Clicked() {
+							if k.button("record-"+act.id, label, nil, false, false).Width(72).Justify(ui.Center).Clicked() {
 								if recording {
 									s.recording, s.err = "", ""
 								} else {
@@ -132,24 +109,54 @@ func (a *app) shortcutEditorDialog(c *ui.Context) {
 					}
 				})
 				if s.err != "" {
-					ui.Text(c, s.err).FontSize(12).TextColor(ink.muted)
+					ui.Row(c).Gap(6).AlignItems(ui.Center).Margin(10, 0, 0, 18).Children(func() {
+						ui.Icon(c, iconWarn).Size(13, 13).TextColor(warnColor)
+						ui.Text(c, s.err).FontSize(12.5).TextColor(warnColor)
+					})
 				}
-				ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-					if pillButton(c.Key("shortcut-reset"), iconReload, "恢复默认", ink.text.Alpha(0.08), ink.text).Clicked() {
-						a.settings.Shortcuts = nil
-						a.settings.save()
-						a.applyGlobalKeys()
-						s.recording, s.err = "", ""
-						a.toast = "已恢复默认全局快捷键"
-						a.redraw()
-					}
-					ui.Spacer(c)
-					if pillButton(c.Key("shortcut-done"), iconCheck, "完成", a.pal.accent, a.pal.onAccent).Clicked() {
-						s.open = false
-					}
-				})
+			})
+			dialogFooter(c, func() {
+				if settingButton(c.Key("shortcut-reset"), ink, "恢复默认", iconReload, false, false).Clicked() {
+					a.settings.Shortcuts = nil
+					a.settings.save()
+					a.applyGlobalKeys()
+					s.recording, s.err = "", ""
+					a.toast = "已恢复默认全局快捷键"
+					a.redraw()
+				}
+				ui.Spacer(c)
+				if primaryButton(c.Key("shortcut-done"), "完成", iconCheck, a.pal, false).Clicked() {
+					s.open = false
+				}
 			})
 		})
+	})
+}
+
+// keycaps shows a combination as keys, each on a cap of its own: Ctrl,
+// Alt, then the key.
+func keycaps(c *ui.Context, keys string, ink paneInk) {
+	if keys = strings.TrimSpace(keys); keys == "" || keys == "未设置" {
+		ui.Text(c, "未设置").FontSize(12.5).TextColor(ink.faint)
+		return
+	}
+	// What is said of it, as that it is not registered, after the caps.
+	note := ""
+	if i := strings.Index(keys, "（"); i > 0 {
+		keys, note = keys[:i], keys[i:]
+	}
+	ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
+		defer func() {
+			if note != "" {
+				ui.Text(c, note).FontSize(11.5).TextColor(warnColor).Margin(0, 0, 0, 2)
+			}
+		}()
+		for i, key := range strings.Split(keys, "+") {
+			ui.Box(c.Key(i)).Height(24).MinWidth(24).PaddingX(7).Radius(8).Center().
+				Background(ink.hover).Border(0.5, ink.line).Shadow(0, 1, 0, 0, ink.line).Children(func() {
+				ui.Text(c, strings.TrimSpace(key)).FontSize(11.5).FontWeight(600).FontFeatures("tnum").SingleLine()
+			})
+		}
 	})
 }
 

@@ -241,10 +241,7 @@ func (a *app) roamSection(c *ui.Context) {
 	a.sectionLarge(c, "风格漫游")
 	ui.Text(c, "风格可搭配一种语种，再次点击取消选择；无需登录").FontSize(14.5).TextColor(p.muted).Margin(-10, 0, 18, 0)
 	for _, g := range roamGroups {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Margin(14, 2, 10, 2).Children(func() {
-			ui.Box(c).Size(3, 16).Radius(8).Background(p.accent)
-			ui.Text(c, g.title).FontSize(15).FontWeight(700).TextColor(p.text)
-		})
+		ui.Text(c, g.title).FontSize(13).FontWeight(600).TextColor(p.muted).Margin(16, 2, 10, 4)
 		ui.Grid(c.Key(g.title)).Columns(a.columns(c, 88)).GapX(10).GapY(10).Children(func() {
 			for i := range g.styles {
 				a.styleTile(c.Key(g.styles[i].label), &g.styles[i])
@@ -268,7 +265,7 @@ func (a *app) styleTile(c *ui.Context, s *roamStyle) {
 	case on:
 		bg, edge, ink = p.accent.Alpha(0.16), p.accent, p.accent
 	case tile.Hovered():
-		bg, edge = p.press, p.faint
+		bg = p.press
 	}
 	tile.Background(tile.AnimateColor("bg", bg, ui.Animation{Duration: 140 * time.Millisecond}))
 	tile.BorderColor(tile.AnimateColor("edge", edge, ui.Animation{Duration: 140 * time.Millisecond}))
