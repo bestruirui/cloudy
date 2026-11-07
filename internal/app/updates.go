@@ -37,6 +37,7 @@ type updateState struct {
 // plugin, whose plain UI sat apart from the app's glass.
 func (a *app) useUpdater() {
 	a.updates = true
+	mygo.Updater.SetMirrors(updateMirrors...)
 }
 
 // checkForUpdates checks for updates as the listener asked, and shows what

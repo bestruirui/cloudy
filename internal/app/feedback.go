@@ -62,7 +62,7 @@ type feedbackState struct {
 func (a *app) feedbackCard(c *ui.Context, ink paneInk) {
 	f := &a.feedback
 	ui.Column(c).Padding(14, 16).Gap(12).AlignItems(ui.Stretch).Children(func() {
-		ui.Text(c, "问题、想法或建议都可以写在这里，会连同图片和软件版本一起发给nya").FontSize(12).TextColor(ink.muted).LineHeight(1.4)
+		ui.Text(c, feedbackIntro()).FontSize(12).TextColor(ink.muted).LineHeight(1.4)
 		ui.TextArea(c.Key("feedback-text"), &f.text).Placeholder("写下你想说的…").Label("反馈内容").Height(110).FontSize(13.5)
 		if len(f.images) > 0 {
 			gone := -1
@@ -96,9 +96,20 @@ func (a *app) feedbackCard(c *ui.Context, ink paneInk) {
 			if f.sending {
 				label = "后台发送中…"
 			}
-			send := ui.PrimaryButton(c.Key("feedback-send"), label).Disabled(f.sending || strings.TrimSpace(f.text) == "")
-			if send.Clicked() {
+			empty := strings.TrimSpace(f.text) == ""
+			if feedbackBilibiliUID == 0 {
+				if ui.PrimaryButton(c.Key("feedback-send"), label).Disabled(f.sending || empty).Clicked() {
+					a.sendFeedback()
+				}
+				return
+			}
+			// Mail goes through a form some networks cannot reach: the
+			// author's Bilibili messages come first.
+			if ui.Button(c.Key("feedback-send"), "用邮件发送").Disabled(f.sending || empty).Clicked() {
 				a.sendFeedback()
+			}
+			if ui.PrimaryButton(c.Key("feedback-bilibili"), "发到 B 站私信").Disabled(empty).Clicked() {
+				a.feedbackToBilibili()
 			}
 		})
 	})

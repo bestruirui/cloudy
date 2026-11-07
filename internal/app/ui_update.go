@@ -74,6 +74,11 @@ func (a *app) updateDialog(c *ui.Context) {
 					a.installUpdate()
 				}
 			case u.err != "":
+				// Neither GitHub nor its mirrors: the installers wait on a
+				// cloud drive reachable from anywhere.
+				if manualDownloadURL != "" && pillButton(c.Key("manual"), iconDownload, "从夸克网盘下载", p.hover.Over(p.bg), p.text).Clicked() {
+					mygo.Shell.OpenExternal(manualDownloadURL)
+				}
 				if pillButton(c.Key("retry"), nil, "重试", p.accent, p.onAccent).Clicked() {
 					a.checkForUpdates()
 				}
