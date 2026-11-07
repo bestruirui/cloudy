@@ -48,8 +48,13 @@ type Player struct {
 	// recorded. Songs play as they are.
 	PodcastSpeed float64
 
+	// Listened, if set, hears how long a track was listened to, once the
+	// listener moves on from it or it plays to its end.
+	Listened func(t netease.Track, played time.Duration, ended bool)
+
 	stretcher *stretch // between the stream and what plays, for a speed
 	curSpeed  float64  // the speed the track playing plays at
+	heardGen  int      // the load whose listening was told, so it is told once
 
 	queue   []netease.Track
 	order   []int // the queue's indices in play order: shuffled or not
@@ -151,6 +156,7 @@ func (p *Player) announce(t *netease.Track, artwork []byte) {
 }
 
 func (p *Player) ended() {
+	p.tellListened(true)
 	if p.StopAfterSong {
 		p.StopAfterSong = false
 		if p.SongStopped != nil {
@@ -689,6 +695,11 @@ func (p *Player) loadSkipping(at, skipped int, play bool, from time.Duration, di
 }
 
 func (p *Player) loadAttempt(at, skipped int, play bool, from time.Duration, direction, retries int) {
+	// Moving on to another track: how long this one was listened to. A
+	// retry of the same one is no move.
+	if at >= 0 && at < len(p.order) && p.track != nil && p.queue[p.order[at]].ID != p.track.ID {
+		p.tellListened(false)
+	}
 	p.stop()
 	p.retries = retries
 	gen := p.gen

@@ -50,3 +50,13 @@ func (p *Player) SetPodcastSpeed(speed float64) {
 	p.out.Seek(p.heard(at))
 	p.sync()
 }
+
+// tellListened tells Listened how long the track playing was listened to, once a
+// load: as it ends, or as the listener moves on.
+func (p *Player) tellListened(ended bool) {
+	if p.Listened == nil || p.track == nil || p.out == nil || p.heardGen == p.gen {
+		return
+	}
+	p.heardGen = p.gen
+	p.Listened(*p.track, p.Position(), ended)
+}

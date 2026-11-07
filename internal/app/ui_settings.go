@@ -500,6 +500,11 @@ func (a *app) settingsBody(c *ui.Context) {
 					}
 				})
 				a.outputRow(c, row)
+				row("计入网易云听歌记录", "听完或听满 30 秒的歌会计入账号的听歌时长和排行；这是网易云未公开的接口，非官方客户端使用存在一定账号风险，默认关闭", func() {
+					if ui.Switch(c.Key("scrobble"), &s.Scrobble).Label("计入网易云听歌记录").Disabled(a.profile == nil).Changed() {
+						a.changed()
+					}
+				})
 			})
 
 			group("下载歌曲", func() {

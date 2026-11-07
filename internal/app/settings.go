@@ -146,6 +146,10 @@ type settings struct {
 	// own width; SidebarSize how large its rows are: "", large or huge.
 	SidebarWidth int    `json:"sidebarWidth,omitempty"`
 	SidebarSize  string `json:"sidebarSize,omitempty"`
+	// Scrobble tells NetEase of the songs played, for them to count in the
+	// listener's listening: off unless they turn it on, as NetEase does not
+	// document it.
+	Scrobble bool `json:"scrobble,omitempty"`
 
 	path string // where they were loaded from, and are saved to
 }

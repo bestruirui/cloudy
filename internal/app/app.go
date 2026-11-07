@@ -312,6 +312,7 @@ func Run() error {
 		a.pl.Quality = func() string { return a.settings.Quality }
 		a.pl.Normalize = func() bool { return a.settings.Normalize }
 		a.pl.Cache = newSongCache(a.settings.CacheMB)
+		a.pl.Listened = a.listened
 		a.pl.SongStopped = func() {
 			a.sleepMinutes = 0
 			a.toast = "定时结束，本首播完后已暂停"
