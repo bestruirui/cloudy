@@ -192,7 +192,7 @@ func (a *app) coverStack(c *ui.Context, pl *netease.Playlist) {
 // room for three.
 func (a *app) coverStackURLs(c *ui.Context, urls []string) {
 	w, _ := c.Size()
-	if w-sidebarWidth < 860 {
+	if w-a.sideWidth(w) < 860 {
 		return
 	}
 	if len(urls) < 3 {

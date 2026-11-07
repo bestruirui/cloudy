@@ -370,6 +370,21 @@ func (a *app) settingsBody(c *ui.Context) {
 						a.changed()
 					}
 				})
+				row("侧边栏大小", "侧边栏里歌单、专辑的封面和文字大小；拖动侧边栏右边缘可以调整宽度，双击边缘恢复", func() {
+					labels := make([]string, len(sidebarSizes))
+					for i, sz := range sidebarSizes {
+						labels[i] = sz.label
+					}
+					chosen := a.sidebarSizeLabel()
+					if a.paneSelect(c.Key("sidebar-size"), "侧边栏大小", &chosen, labels) {
+						for _, sz := range sidebarSizes {
+							if sz.label == chosen {
+								s.SidebarSize = sz.id
+							}
+						}
+						a.changed()
+					}
+				})
 				row("字体", "界面、歌词与评论使用的字体", func() {
 					fonts := a.fontChoices()
 					a.loadFontFiles()

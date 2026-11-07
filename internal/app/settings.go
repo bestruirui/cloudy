@@ -142,6 +142,10 @@ type settings struct {
 	// OutputDevice is the endpoint ID of the output music plays through;
 	// empty for the system's default, which it follows.
 	OutputDevice string `json:"outputDevice,omitempty"`
+	// SidebarWidth is how wide the listener dragged the sidebar, 0 for its
+	// own width; SidebarSize how large its rows are: "", large or huge.
+	SidebarWidth int    `json:"sidebarWidth,omitempty"`
+	SidebarSize  string `json:"sidebarSize,omitempty"`
 
 	path string // where they were loaded from, and are saved to
 }

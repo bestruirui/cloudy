@@ -352,7 +352,7 @@ func (a *app) myPlaylists(c *ui.Context, title string, lists []netease.Playlist,
 			b.Background(p.hover)
 		}
 		b.Children(func() {
-			ui.Text(c, title).FontSize(11.5).FontWeight(600).TextColor(p.faint).Grow(1)
+			ui.Text(c, title).FontSize(a.side().title).FontWeight(600).TextColor(p.faint).Grow(1)
 			turn := float32(0)
 			if *collapsed {
 				turn = -90
@@ -378,7 +378,8 @@ func (a *app) playlistRows(c *ui.Context, lists []netease.Playlist, mine bool) {
 	for i := range lists {
 		pl := &lists[i]
 		selected := a.route.page == pagePlaylist && a.route.id == pl.ID && !a.nowPlaying
-		b := ui.ButtonBase(c.Key(pl.ID)).Height(34).PaddingX(8).Gap(10).Radius(8).AlignItems(ui.Center).Justify(ui.Start).FocusRing(false).Label(pl.Name)
+		d := a.side()
+		b := ui.ButtonBase(c.Key(pl.ID)).Height(d.row).PaddingX(8).Gap(10).Radius(8).AlignItems(ui.Center).Justify(ui.Start).FocusRing(false).Label(pl.Name)
 		if b.Hovered() && !selected {
 			b.Background(p.hover)
 		}
@@ -386,8 +387,8 @@ func (a *app) playlistRows(c *ui.Context, lists []netease.Playlist, mine bool) {
 			if selected {
 				a.navPill(c)
 			}
-			a.cover(c, pl.Cover(), 80, 22, 5)
-			ui.Text(c, pl.Name).FontSize(13).SingleLine().Shrink(1).MinWidth(0)
+			a.cover(c, pl.Cover(), 96, d.cover, d.coverRadius)
+			ui.Text(c, pl.Name).FontSize(d.text).SingleLine().Shrink(1).MinWidth(0)
 		})
 		switch {
 		case mine && pl.SpecialType != 5:

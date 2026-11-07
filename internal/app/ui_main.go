@@ -10,6 +10,7 @@ import (
 	"netease-music-mygo/internal/netease"
 )
 
+// sidebarWidth is the sidebar's width until the listener drags its edge.
 const sidebarWidth = 232
 
 func (a *app) view(c *ui.Context) {
@@ -62,7 +63,8 @@ func (a *app) view(c *ui.Context) {
 				// trackList), so it shows again as it was.
 				return
 			}
-			side := ui.Column(c).Width(sidebarWidth)
+			winW, _ := c.Size()
+			side := ui.Column(c).Width(a.sideWidth(winW))
 			switch {
 			case !c.Vibrancy():
 				a.sideColor = side.AnimateColor("tint", a.sidebarColor(), ui.Animation{Duration: 700 * time.Millisecond})
@@ -76,7 +78,10 @@ func (a *app) view(c *ui.Context) {
 				a.sideColor = side.AnimateColor("tint", a.sidebarColor(), ui.Animation{Duration: 700 * time.Millisecond})
 				side.Background(a.sideColor.Alpha(0.55))
 			}
-			side.Children(func() { a.sidebar(c) })
+			side.Children(func() {
+				a.sidebar(c)
+				a.sidebarResizer(c, winW)
+			})
 			// Keyed, so that a popover of the sidebar opening or closing
 			// keeps what the page and its bars hold, their edges' fades.
 			ui.Box(c.Key("main")).Grow(1).Background(p.bg).Children(func() {
@@ -272,7 +277,8 @@ func (a *app) sidebar(c *ui.Context) {
 func (a *app) navItem(c *ui.Context, icon *ui.SVG, label string, r route) {
 	p := a.pal
 	selected := a.route.page == r.page && !a.nowPlaying
-	b := ui.ButtonBase(c.Key(label)).Height(34).PaddingX(10).Gap(10).Radius(8).AlignItems(ui.Center).Justify(ui.Start).FocusRing(false)
+	d := a.side()
+	b := ui.ButtonBase(c.Key(label)).Height(d.row).PaddingX(10).Gap(10).Radius(8).AlignItems(ui.Center).Justify(ui.Start).FocusRing(false)
 	bg := ui.Transparent
 	if b.Hovered() && !selected {
 		bg = p.hover
@@ -286,8 +292,8 @@ func (a *app) navItem(c *ui.Context, icon *ui.SVG, label string, r route) {
 		if selected {
 			a.navPill(c)
 		}
-		ui.Icon(c, icon).Size(17, 17).TextColor(color)
-		ui.Text(c, label).FontSize(13.5).FontWeight(500).TextColor(p.text)
+		ui.Icon(c, icon).Size(d.icon, d.icon).TextColor(color)
+		ui.Text(c, label).FontSize(d.navText).FontWeight(500).TextColor(p.text)
 	})
 	if b.Clicked() {
 		a.open(r)

@@ -152,7 +152,7 @@ func (a *app) myAlbumsSection(c *ui.Context) {
 			b.Background(p.hover)
 		}
 		b.Children(func() {
-			ui.Text(c, title).FontSize(11.5).FontWeight(600).TextColor(p.faint).Grow(1)
+			ui.Text(c, title).FontSize(a.side().title).FontWeight(600).TextColor(p.faint).Grow(1)
 			turn := float32(0)
 			if a.albumsCollapsed {
 				turn = -90
@@ -205,7 +205,8 @@ func (a *app) albumRows(c *ui.Context, albums []netease.AlbumProfile) {
 	for i := range albums {
 		al := &albums[i]
 		selected := a.route.page == pageAlbum && a.route.id == al.ID && !a.nowPlaying
-		b := ui.ButtonBase(c.Key(al.ID)).Height(34).PaddingX(8).Gap(10).Radius(8).AlignItems(ui.Center).Justify(ui.Start).FocusRing(false).Label(al.Name)
+		d := a.side()
+		b := ui.ButtonBase(c.Key(al.ID)).Height(d.row).PaddingX(8).Gap(10).Radius(8).AlignItems(ui.Center).Justify(ui.Start).FocusRing(false).Label(al.Name)
 		if b.Hovered() && !selected {
 			b.Background(p.hover)
 		}
@@ -213,8 +214,8 @@ func (a *app) albumRows(c *ui.Context, albums []netease.AlbumProfile) {
 			if selected {
 				a.navPill(c)
 			}
-			a.cover(c, al.PicURL, 80, 22, 5)
-			ui.Text(c, al.Name).FontSize(13).SingleLine().Shrink(1).MinWidth(0)
+			a.cover(c, al.PicURL, 96, d.cover, d.coverRadius)
+			ui.Text(c, al.Name).FontSize(d.text).SingleLine().Shrink(1).MinWidth(0)
 		})
 		a.contextMenu(b, false, func() [][]menuAction {
 			return [][]menuAction{{

@@ -125,6 +125,7 @@ type app struct {
 	queueList   ui.ListState
 	queueAt     int // the row of the queue pane last scrolled to, -1 while it is hidden
 	loginKnown  *bool // whether the app starts at login, once asked
+	sideDragging bool // the sidebar's edge is being dragged
 	shownTracks []netease.Track // the songs the page lists now, for choosing among them
 	recent      recentState     // the songs played lately
 	outputList  outputList // the audio outputs, as last listed
