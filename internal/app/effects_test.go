@@ -70,6 +70,7 @@ func TestEffectsFrames(t *testing.T) {
 			a.settings.EffectsPreset = customPreset
 			a.effects.open = true
 			a.effects.page = page
+			a.settings.Effects.Treble, a.settings.Effects.Depth, a.settings.Effects.Room = -0.3, 0.4, "hall"
 			tt := ui.NewTester(a.view, 1180, 780)
 			tt.SetDark(dark)
 			tt.Frame()

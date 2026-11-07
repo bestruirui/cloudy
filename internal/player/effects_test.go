@@ -101,3 +101,42 @@ func (s *scaled) Read(dst []float32) (int, error) {
 	}
 	return n, err
 }
+
+// The treble lifts the highs and leaves the lows; turned down, the bass
+// takes the lows down; a room rings on after the sound stops; nothing goes
+// past full scale with all of it at once.
+func TestTrebleBassRoom(t *testing.T) {
+	up := Effects{On: true, Treble: 1}
+	if hi, lo := energy(t, 10000, &up)/energy(t, 10000, nil), energy(t, 100, &up)/energy(t, 100, nil); hi < lo*3 {
+		t.Errorf("treble lifted 10 kHz %.2f×, 100 Hz %.2f×", hi, lo)
+	}
+	down := Effects{On: true, Bass: -1}
+	if r := energy(t, 50, &down) / energy(t, 50, nil); r > 0.4 {
+		t.Errorf("bass turned down left 50 Hz at %.2f×", r)
+	}
+	for _, room := range Rooms[1:] {
+		e := Effects{On: true, Room: room.ID, Depth: 1, Width: 1, Bass: 1, Treble: 1}
+		var fx atomic.Pointer[Effects]
+		fx.Store(&e)
+		// Half a second of tone, then silence.
+		s := newShaper(&tone{hz: 440, rate: 44100, frames: 22050}, &fx)
+		buf := make([]float32, 2*22050)
+		s.Read(buf)
+		for _, v := range buf {
+			if v > 1 || v < -1 {
+				t.Fatalf("%s: a sample at %v", room.Label, v)
+			}
+		}
+		tail := make([]float32, 2*4410)
+		silent := &tone{hz: 0, rate: 44100, frames: 4410}
+		s.Decoder = silent
+		s.Read(tail)
+		ring := float32(0)
+		for _, v := range tail {
+			ring = max(ring, v, -v)
+		}
+		if ring < 0.001 {
+			t.Errorf("%s: nothing rang after the sound stopped", room.Label)
+		}
+	}
+}

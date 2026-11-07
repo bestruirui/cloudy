@@ -14,8 +14,14 @@ import (
 type Effects struct {
 	On    bool
 	Bands [len(EffectBands)]float64 // gain in dB, of each of EffectBands
-	Bass  float64                   // 0 to 1: up to 9 dB under 100 Hz
+	Bass  float64                   // -1 to 1: up to 9 dB under 100 Hz, down or up
 	Width float64                   // 0 to 1: the sides up to twice as wide
+	// Treble is the highs over 6 kHz, -1 to 1, up to 9 dB down or up;
+	// Depth the sides given the depth of the other channel a moment late,
+	// 0 to 1; Room the room the sound plays in, of Rooms.
+	Treble float64
+	Depth  float64
+	Room   string
 	// Vocal lifts what sits in the middle, the voice, where it is heard
 	// clearly, 0 to 1; Loudness evens out what is loud and what is quiet,
 	// 0 to 1, as a compressor does.
@@ -84,8 +90,33 @@ func lowShelf(rate, f0, gain float64) biquad {
 	}
 }
 
-// bassGain is the most the bass lifts, in dB.
-const bassGain = 9
+// highShelf lifts what is over f0 by gain dB.
+func highShelf(rate, f0, gain float64) biquad {
+	A := math.Pow(10, gain/40)
+	w := 2 * math.Pi * f0 / rate
+	cos, sin := math.Cos(w), math.Sin(w)
+	alpha := sin / 2 * math.Sqrt2
+	sq := 2 * math.Sqrt(A) * alpha
+	a0 := (A + 1) - (A-1)*cos + sq
+	return biquad{
+		b0: A * ((A + 1) + (A-1)*cos + sq) / a0,
+		b1: -2 * A * ((A - 1) + (A+1)*cos) / a0,
+		b2: A * ((A + 1) + (A-1)*cos - sq) / a0,
+		a1: 2 * ((A - 1) - (A+1)*cos) / a0,
+		a2: ((A + 1) - (A-1)*cos - sq) / a0,
+	}
+}
+
+// bassGain and trebleGain are the most the bass and the highs go up or
+// down, in dB.
+const (
+	bassGain   = 9
+	trebleGain = 9
+)
+
+// depthDelay is how late the other channel comes back into each, for the
+// depth: within the 1 to 30 ms the ear takes for a room's.
+const depthDelay = 0.012
 
 // shaper applies the effects to a decoder's sound as it is read.
 type shaper struct {
@@ -99,6 +130,9 @@ type shaper struct {
 	voice           biquadState
 	env             float64 // how loud the sound is now, for the compressor
 	attack, release float64
+	room            *reverb
+	delay           [2][]float64 // each channel as it was, for the depth
+	delayAt         int
 }
 
 func newShaper(d audio.Decoder, fx *atomic.Pointer[Effects]) *shaper {
@@ -117,10 +151,23 @@ func (s *shaper) tune(e Effects) {
 			most = max(most, g)
 		}
 	}
-	if e.Bass > 0 {
+	if e.Bass != 0 {
 		g := e.Bass * bassGain
 		s.filters = append(s.filters, lowShelf(rate, 100, g))
 		most = max(most, g+max(e.Bands[0], e.Bands[1], 0))
+	}
+	if e.Treble != 0 {
+		g := e.Treble * trebleGain
+		s.filters = append(s.filters, highShelf(rate, 6000, g))
+		most = max(most, g+max(e.Bands[8], e.Bands[9], 0))
+	}
+	s.room = nil
+	if r := roomOf(e.Room); r != nil {
+		s.room = newReverb(r, rate)
+	}
+	if n := int(depthDelay * rate); e.Depth > 0 && len(s.delay[0]) != n {
+		s.delay = [2][]float64{make([]float64, n), make([]float64, n)}
+		s.delayAt = 0
 	}
 	if e.Vocal > 0 {
 		// Presence, where a voice is understood: in the middle of the
@@ -175,6 +222,20 @@ func (s *shaper) Read(dst []float32) (int, error) {
 			}
 			l, r = mid+sd, mid-sd
 		}
+		if e.Depth > 0 && len(s.delay[0]) > 0 {
+			// Each channel takes the other's, a moment late and turned
+			// over: what is at the sides seems to come from further off.
+			k := 0.45 * e.Depth
+			dl, dr := s.delay[0][s.delayAt], s.delay[1][s.delayAt]
+			s.delay[0][s.delayAt], s.delay[1][s.delayAt] = l, r
+			if s.delayAt++; s.delayAt == len(s.delay[0]) {
+				s.delayAt = 0
+			}
+			l, r = l-k*dr, r-k*dl
+		}
+		if s.room != nil {
+			l, r = s.room.run(l, r)
+		}
 		if e.Loudness > 0 {
 			level := max(math.Abs(l), math.Abs(r))
 			if level > s.env {
@@ -212,6 +273,13 @@ func (s *shaper) SetPosition(frame int64) error {
 		s.state[i] = [2]biquadState{}
 	}
 	s.voice, s.env = biquadState{}, 0
+	for _, d := range s.delay {
+		clear(d)
+	}
+	if s.room != nil {
+		// A room still ringing with what played before would ring on.
+		s.room = newReverb(roomOf(s.applied.Room), float64(s.SampleRate()))
+	}
 	return s.Decoder.SetPosition(frame)
 }
 

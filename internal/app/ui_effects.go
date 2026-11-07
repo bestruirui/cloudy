@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 
@@ -152,11 +153,11 @@ func (a *app) effectsDialog(c *ui.Context) {
 					}
 					body.Children(func() {
 						a.equalizer(c, ink)
+						a.enhanceCard(c, ink)
 						ui.Column(c).Radius(14).Background(ink.text.Alpha(0.05)).Padding(4, 16).Children(func() {
-							a.effectSlider(c, "低音增强", "加强 100Hz 以下的低频", &e.Bass, ink)
 							a.effectSlider(c, "人声增强", "让居中的人声更靠前、更清楚，伴奏不受影响", &e.Vocal, ink)
-							a.effectSlider(c, "空间环绕", "加宽左右声道，声音更开阔", &e.Width, ink)
 							a.effectSlider(c, "响度均衡", "压低过响的段落、抬起轻柔的段落，音量更平稳", &e.Loudness, ink)
+							a.roomRow(c, ink)
 						})
 					})
 				}
@@ -185,8 +186,8 @@ func (a *app) presetCards(c *ui.Context, colw float32) {
 	})
 }
 
-// presetCard is a preset as a card: its colors, what it is like, the shape
-// of its sound drawn along its foot, and a check while it is chosen.
+// presetCard is a preset as a card: its colors, its theme, what it is
+// like, and a check while it is chosen.
 func (a *app) presetCard(c *ui.Context, p *effectPreset, w float32) {
 	e := &a.settings.Effects
 	chosen := e.On && a.settings.EffectsPreset == p.id
@@ -209,24 +210,6 @@ func (a *app) presetCard(c *ui.Context, p *effectPreset, w float32) {
 	if card.Hovered() || chosen {
 		card.Shadow(0, 10, 24, -8, ui.Hex(p.to).Alpha(0.7))
 	}
-	bands := p.bands
-	card.Draw(func(pt *ui.Painter, r ui.Rect) {
-		// The shape of the preset's sound, a thin line along the foot: flat
-		// for the sound as it is.
-		x0, x1 := r.X+14, r.X+r.W-14
-		base, span := r.Y+r.H-20, float32(9)
-		path := &ui.Path{}
-		for i, g := range bands {
-			x := x0 + (x1-x0)*float32(i)/float32(len(bands)-1)
-			y := base - span*float32(g/player.EffectRange)*1.6
-			if i == 0 {
-				path.MoveTo(x, y)
-			} else {
-				path.LineTo(x, y)
-			}
-		}
-		pt.StrokePath(path.Join(ui.RoundJoin), 1.6, white.Alpha(0.75))
-	})
 	card.Children(func() {
 		// The theme, large and faint, off the corner.
 		ui.Icon(c, p.icon).Absolute().Right(-10).Top(-6).Size(78, 78).TextColor(white.Alpha(0.16))
@@ -388,4 +371,93 @@ func (a *app) effectsNote() string {
 		return "关闭"
 	}
 	return a.presetLabel()
+}
+
+// enhanceCard is the bass and the highs, each down or up, and the room's
+// depth and width, two a row, with what puts them back.
+func (a *app) enhanceCard(c *ui.Context, ink paneInk) {
+	e := &a.settings.Effects
+	ui.Column(c.Key("enhance")).Radius(14).Background(ink.text.Alpha(0.05)).Padding(12, 16, 16, 16).Gap(10).Children(func() {
+		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, "增强音效").FontSize(13.5).FontWeight(600).Grow(1)
+			if pillButton(c.Key("enhance-reset"), nil, "重置", ink.text.Alpha(0.08), ink.text).Height(28).PaddingX(14).Clicked() {
+				e.Bass, e.Treble, e.Depth, e.Width = 0, 0, 0, 0
+				a.shaped()
+			}
+		})
+		ui.Grid(c).Columns(2).GapX(28).GapY(14).Children(func() {
+			a.compactSlider(c, "低音", &e.Bass, -1, ink)
+			a.compactSlider(c, "高音", &e.Treble, -1, ink)
+			a.compactSlider(c, "环绕深度", &e.Depth, 0, ink)
+			a.compactSlider(c, "环绕强度", &e.Width, 0, ink)
+		})
+	})
+}
+
+// compactSlider is one of the enhancements: − and + at its ends, its name
+// and how much under it. From lo, -1 or 0, to 1: one that goes down and up
+// fills from its middle.
+func (a *app) compactSlider(c *ui.Context, label string, v *float64, lo float64, ink paneInk) {
+	ui.Column(c.Key(label)).Gap(4).AlignItems(ui.Stretch).Children(func() {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, "−").FontSize(13).TextColor(ink.muted).Width(10)
+			s := ui.SliderBase(c.Key("slider"), v, lo, 1).Grow(1).Height(22).Step(0.02).FocusRing(false).Label(label).Cursor(ui.CursorPointer)
+			if s.Changed() {
+				a.shaped()
+			}
+			if s.Pressed() {
+				a.effects.held = true
+			}
+			if s.DoubleClicked() {
+				*v = 0
+				a.shaped()
+			}
+			at, from, accent := float32((*v-lo)/(1-lo)), float32(-lo/(1-lo)), a.pal.accent
+			s.Draw(func(p *ui.Painter, r ui.Rect) {
+				const thick, knob = 4, 16
+				y := r.Y + (r.H-thick)/2
+				span := r.W - knob
+				x := func(f float32) float32 { return r.X + knob/2 + span*f }
+				p.Fill(ui.Rect{X: r.X, Y: y, W: r.W, H: thick}, ink.text.Alpha(0.12), thick/2)
+				a0, a1 := min(x(from), x(at)), max(x(from), x(at))
+				p.Fill(ui.Rect{X: a0, Y: y, W: max(a1-a0, 0.1), H: thick}, accent, thick/2)
+				k := ui.Rect{X: x(at) - knob/2, Y: r.Y + (r.H-knob)/2, W: knob, H: knob}
+				p.Shadow(k, knob/2, 0, 1, 4, 0, ui.RGBA(0, 0, 0, 0.3))
+				p.Fill(k, white, knob/2)
+			})
+			ui.Text(c, "+").FontSize(13).TextColor(ink.muted).Width(10).TextAlign(ui.End)
+		})
+		amount := strconv.Itoa(int(math.Round(*v*100))) + "%"
+		if lo < 0 && *v > 0 {
+			amount = "+" + amount
+		}
+		ui.Text(c, label+"  "+amount).FontSize(12).TextColor(ink.muted).TextAlign(ui.Center).FontFeatures("tnum")
+	})
+}
+
+// roomRow chooses the room the sound plays in.
+func (a *app) roomRow(c *ui.Context, ink paneInk) {
+	e := &a.settings.Effects
+	ui.Row(c.Key("room")).Padding(12, 0).Gap(16).AlignItems(ui.Center).Children(func() {
+		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(3).Children(func() {
+			ui.Text(c, "环境音效").FontSize(13.5).FontWeight(500)
+			ui.Text(c, "让声音像在不同的空间里播放").FontSize(12).TextColor(ink.muted)
+		})
+		labels := make([]string, len(player.Rooms))
+		chosen := player.Rooms[0].Label
+		for i, r := range player.Rooms {
+			labels[i] = r.Label
+			if r.ID == e.Room {
+				chosen = r.Label
+			}
+		}
+		if a.paneSelect(c.Key("room-select"), "环境音效", &chosen, labels) {
+			for _, r := range player.Rooms {
+				if r.Label == chosen {
+					e.Room = r.ID
+				}
+			}
+			a.shaped()
+		}
+	})
 }
