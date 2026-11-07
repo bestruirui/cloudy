@@ -205,6 +205,11 @@ type app struct {
 	settingsOpen   bool
 	settingsTab    settingsCategory
 	settingsScroll [settingsCategoryCount]ui.ScrollState
+	// settingsQuery is what is searched in the settings, settingsSearchBox
+	// its field, and settingsSearchScroll how far what it found is scrolled.
+	settingsQuery        string
+	settingsSearchBox    ui.Handle
+	settingsSearchScroll ui.ScrollState
 	settingsDirty  bool            // a slider moved, and the settings are not kept yet
 	accentDraft    accentPick      // the color well open, and the color it shows
 	update         updateState     // the update pane, and the update it found

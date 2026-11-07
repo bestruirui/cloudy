@@ -261,5 +261,11 @@ func (a *app) lyricTools(c *ui.Context, id int64, at ui.Rect) {
 			chip("reset", "恢复歌词时间", 52, shift != 0, func() { move(-shift) }, number(fmt.Sprintf("%+.1fs", float64(shift)/1000)))
 			chip("later", "歌词延后 0.1 秒", 44, false, func() { move(-100) }, word("延后", 13))
 		})
+		// The rest of the lyrics' settings, in the settings.
+		group("more", func() {
+			chip("more", "更多歌词设置", 30, false, func() { a.openSettingsAt(settingsLyrics) }, func(fg ui.Color) ui.Element {
+				return ui.Icon(c, iconSettings).Size(14, 14).TextColor(fg)
+			})
+		})
 	})
 }

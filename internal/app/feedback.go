@@ -61,7 +61,7 @@ type feedbackState struct {
 // feedbackCard is the message, what it is sent with, and the button to send it.
 func (a *app) feedbackCard(c *ui.Context, ink paneInk) {
 	f := &a.feedback
-	ui.Column(c).Padding(14, 16).Gap(12).AlignItems(ui.Stretch).Children(func() {
+	ui.Column(c).Padding(16, 20).Gap(12).AlignItems(ui.Stretch).Children(func() {
 		ui.Text(c, feedbackIntro()).FontSize(12).TextColor(ink.muted).LineHeight(1.4)
 		ui.TextArea(c.Key("feedback-text"), &f.text).Placeholder("写下你想说的…").Label("反馈内容").Height(110).FontSize(13.5)
 		if len(f.images) > 0 {
@@ -83,7 +83,7 @@ func (a *app) feedbackCard(c *ui.Context, ink paneInk) {
 			}
 		}
 		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-			add := ui.Button(c.Key("feedback-add"), "添加图片").Disabled(f.sending || len(f.images) >= feedbackImages)
+			add := settingButton(c.Key("feedback-add"), ink, "添加图片", iconPlus, f.sending || len(f.images) >= feedbackImages, false)
 			if add.Clicked() {
 				a.pickFeedbackImages()
 			}
@@ -105,7 +105,7 @@ func (a *app) feedbackCard(c *ui.Context, ink paneInk) {
 			}
 			// Mail goes through a form some networks cannot reach: the
 			// author's Bilibili messages come first.
-			if ui.Button(c.Key("feedback-send"), "用邮件发送").Disabled(f.sending || empty).Clicked() {
+			if settingButton(c.Key("feedback-send"), ink, "用邮件发送", nil, f.sending || empty, false).Clicked() {
 				a.sendFeedback()
 			}
 			if ui.PrimaryButton(c.Key("feedback-bilibili"), "发到 B 站私信").Disabled(empty).Clicked() {

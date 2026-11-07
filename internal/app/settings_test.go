@@ -42,27 +42,27 @@ func TestSettingsCategoryNavigation(t *testing.T) {
 		if !ok1 || !ok2 || !ok3 {
 			t.Fatalf("the %s control is not in this category", label)
 		}
-		tt.ClickAt(pane.X+pane.W-24-16-12, (title.Y+note.Y+note.H)/2)
+		tt.ClickAt(pane.X+pane.W-30-20-12, (title.Y+note.Y+note.H)/2)
 		tt.Frame()
 	}
-	choose("外观", settingsAppearance)
+	choose("视觉效果", settingsEffects)
 	wasAccent := a.settings.AccentCover
 	a.settings.AccentCover = !wasAccent
-	pane, _ := tt.Find("外观设置项")
+	pane, _ := tt.Find("视觉效果设置项")
 	tt.Scroll(pane.X+40, pane.Y+pane.H/2, 0, 320)
 	tt.Advance(time.Second)
 	tt.Frame()
-	at := a.settingsScroll[settingsAppearance].Y
+	at := a.settingsScroll[settingsEffects].Y
 	if at <= 0 {
-		t.Fatal("the appearance category did not scroll")
+		t.Fatal("the effects category did not scroll")
 	}
-	choose("常规", settingsGeneral)
-	if a.settingsScroll[settingsGeneral].Y != 0 || a.settings.AccentCover == wasAccent {
+	choose("账号", settingsAccount)
+	if a.settingsScroll[settingsAccount].Y != 0 || a.settings.AccentCover == wasAccent {
 		t.Fatal("switching categories lost the edit or shared the scroll position")
 	}
-	choose("外观", settingsAppearance)
-	if math.Abs(float64(a.settingsScroll[settingsAppearance].Y-at)) > 1 {
-		t.Fatal("returning to appearance lost its scroll position")
+	choose("视觉效果", settingsEffects)
+	if math.Abs(float64(a.settingsScroll[settingsEffects].Y-at)) > 1 {
+		t.Fatal("returning to effects lost its scroll position")
 	}
 	choose("播放", settingsPlayback)
 	choose("关于", settingsAbout)
@@ -70,7 +70,7 @@ func TestSettingsCategoryNavigation(t *testing.T) {
 	if !a.settings.UpdateInstall {
 		t.Fatal("the update preference did not change")
 	}
-	choose("常规", settingsGeneral)
+	choose("账号", settingsAccount)
 	choose("关于", settingsAbout)
 	if !a.settings.UpdateInstall {
 		t.Fatal("returning to about lost the update preference")
@@ -92,7 +92,7 @@ func TestSettingsCategoryFrames(t *testing.T) {
 		t.Skip()
 	}
 	for _, size := range []struct{ w, h int }{{1180, 780}, {880, 580}} {
-		for category := settingsGeneral; category < settingsCategoryCount; category++ {
+		for category := settingsAccount; category < settingsCategoryCount; category++ {
 			a := newTestApp()
 			a.settings = defaultSettings()
 			a.settingsOpen, a.updates = true, true
@@ -112,5 +112,156 @@ func TestSettingsCategoryFrames(t *testing.T) {
 			}
 			f.Close()
 		}
+	}
+}
+
+// Every category opens, and each has something in it.
+func TestSettingsEveryCategory(t *testing.T) {
+	a := newTestApp()
+	a.settings = defaultSettings()
+	a.settingsOpen, a.updates = true, true
+	tt := ui.NewTester(a.view, 1000, 700)
+	tt.SetPreferences(ui.Preferences{ReduceMotion: true})
+	tt.Frame()
+	for i, cat := range settingsCategories {
+		if err := tt.Click("设置分类：" + cat.label); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+		if a.settingsTab != settingsCategory(i) {
+			t.Fatalf("%s opened category %d", cat.label, a.settingsTab)
+		}
+		if _, ok := tt.Find(cat.label + "设置项"); !ok {
+			t.Fatalf("%s shows no settings", cat.label)
+		}
+	}
+	for _, label := range []string{"律动效果", "桌面歌词字号", "歌词字号"} {
+		if err := tt.Click("设置分类：歌词"); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+		_, ok := tt.Find(label)
+		if want := label == "歌词字号"; ok != want {
+			t.Fatalf("%s shown: %v, with its switch off", label, ok)
+		}
+	}
+}
+
+// The search finds settings in any category, by their words or their
+// group's, and says so when nothing matches.
+func TestSettingsSearch(t *testing.T) {
+	a := newTestApp()
+	a.settings = defaultSettings()
+	a.settingsOpen, a.updates = true, true
+	tt := ui.NewTester(a.view, 1000, 700)
+	tt.SetPreferences(ui.Preferences{ReduceMotion: true})
+	tt.Frame()
+	search := func(q string) {
+		t.Helper()
+		a.settingsQuery = q
+		tt.Frame()
+		tt.Frame()
+	}
+	search("翻译")
+	if !tt.HasText("歌词翻译") || tt.HasText("音量均衡") {
+		t.Fatal("searching 翻译 did not find just the translation")
+	}
+	search("缓存")
+	if !tt.HasText("歌曲缓存") || !tt.HasText("清除缓存") || !tt.HasText("下载与缓存") {
+		t.Fatal("searching 缓存 did not find the cache under its category")
+	}
+	// A group's title shows all its rows.
+	search("桌面歌词")
+	if !tt.HasText("锁定") || !tt.HasText("字号") {
+		t.Fatal("searching a group did not show all its rows")
+	}
+	search("没有这种设置")
+	if !tt.HasText("没有找到「没有这种设置」相关的设置") {
+		t.Fatal("an empty search said nothing")
+	}
+	if err := tt.Click("设置分类：播放"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.settingsQuery != "" || a.settingsTab != settingsPlayback {
+		t.Fatal("choosing a category did not leave the search")
+	}
+}
+
+// The power saver turns the costly effects off and puts them back as they
+// were; turning one on by hand leaves it.
+func TestPowerSaver(t *testing.T) {
+	a := newTestApp()
+	a.settings = defaultSettings()
+	s := &a.settings
+	s.Fog, s.Smoke = true, false
+	a.setPowerSaver(true)
+	if s.LiquidGlass || s.BarSpin || s.NpLight || s.Fog || s.Smoke || !s.PowerSaver {
+		t.Fatal("the saver left an effect on")
+	}
+	a.setPowerSaver(false)
+	if !s.LiquidGlass || !s.BarSpin || !s.NpLight || !s.Fog || s.Smoke || s.PowerSaver {
+		t.Fatalf("the saver did not put the effects back: %+v", s)
+	}
+	a.setPowerSaver(true)
+	s.Fog = true
+	a.leavePowerSaver()
+	if s.PowerSaver || s.LiquidGlass || !s.Fog {
+		t.Fatal("turning an effect on did not leave the saver as it was")
+	}
+}
+
+// With NM_FRAMES set, saves a search of the settings, and a category in the
+// light theme.
+func TestSettingsSearchFrames(t *testing.T) {
+	dir := os.Getenv("NM_FRAMES")
+	if dir == "" {
+		t.Skip()
+	}
+	for _, shot := range []struct {
+		name, query string
+		tab         settingsCategory
+		dark        bool
+	}{{"settings-search.png", "缓存", 0, true}, {"settings-light.png", "", settingsEffects, false}} {
+		a := newTestApp()
+		a.settings = defaultSettings()
+		a.settingsOpen, a.updates = true, true
+		a.settingsTab, a.settingsQuery = shot.tab, shot.query
+		tt := ui.NewTester(a.view, 1180, 780)
+		tt.SetDark(shot.dark)
+		tt.SetPreferences(ui.Preferences{ReduceMotion: true})
+		tt.Frame()
+		tt.Frame()
+		f, err := os.Create(filepath.Join(dir, shot.name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := png.Encode(f, tt.Image()); err != nil {
+			t.Fatal(err)
+		}
+		f.Close()
+	}
+}
+
+// While NetEase counts none of the plays told it, the setting shows as not
+// open yet, its switch off and not to be turned on, whatever was kept.
+func TestScrobbleNotOpen(t *testing.T) {
+	defer func(works bool) { scrobbleWorks = works }(scrobbleWorks)
+	scrobbleWorks = false
+	a := newTestApp()
+	a.settings = defaultSettings()
+	a.settings.Scrobble = true
+	a.profile = &netease.Profile{UserID: 1, Nickname: "试听者"}
+	a.settingsOpen, a.settingsTab = true, settingsAccount
+	tt := ui.NewTester(a.view, 1000, 700)
+	tt.SetPreferences(ui.Preferences{ReduceMotion: true})
+	tt.Frame()
+	if !tt.HasText("未开放") || !tt.HasText("计入网易云听歌记录") {
+		t.Fatal("the setting is not shown as not open")
+	}
+	_ = tt.Click("计入网易云听歌记录（未开放）")
+	tt.Frame()
+	if !a.settings.Scrobble {
+		t.Fatal("clicking the closed switch changed what was kept")
 	}
 }

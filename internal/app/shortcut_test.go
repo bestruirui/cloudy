@@ -116,7 +116,7 @@ func TestShortcutEditorFromSettings(t *testing.T) {
 	unregisterShortcut = func(string) {}
 	defer func() { registerShortcut, unregisterShortcut = oldRegister, oldUnregister }()
 	a.applyGlobalKeys()
-	a.openSettings()
+	a.openSettingsAt(settingsSystem)
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
 	if err := tt.Click("自定义"); err != nil {

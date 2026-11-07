@@ -13,6 +13,7 @@ import (
 func TestScrobble(t *testing.T) {
 	old := scrobble
 	defer func() { scrobble = old }()
+	defer func(works bool) { scrobbleWorks = works }(scrobbleWorks)
 	got := make(chan [2]int64, 8)
 	scrobble = func(id, source int64, seconds int, ended bool) error {
 		got <- [2]int64{id, int64(seconds)}
@@ -29,6 +30,14 @@ func TestScrobble(t *testing.T) {
 	case <-time.After(50 * time.Millisecond):
 	}
 	a.settings.Scrobble = true
+	// Hidden, as NetEase counts none of them: not told even when turned on.
+	a.listened(song, time.Minute, true)
+	select {
+	case <-got:
+		t.Fatal("told NetEase while the setting is hidden")
+	case <-time.After(50 * time.Millisecond):
+	}
+	scrobbleWorks = true
 	for _, c := range []struct {
 		tr     netease.Track
 		played time.Duration

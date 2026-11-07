@@ -152,6 +152,10 @@ type settings struct {
 	// "custom" once a band moved.
 	Effects       player.Effects `json:"effects"`
 	EffectsPreset string         `json:"effectsPreset,omitempty"`
+	// PowerSaver has the effects that cost power turned off, SaverBefore
+	// keeping how they were, to put back as it is turned off again.
+	PowerSaver  bool          `json:"powerSaver,omitempty"`
+	SaverBefore *savedEffects `json:"saverBefore,omitempty"`
 
 	path string // where they were loaded from, and are saved to
 }

@@ -48,18 +48,19 @@ func mascotView(c *ui.Context, size float32) ui.Element {
 }
 
 // aboutCard says what the app is, whose it is and where its source is.
-func (a *app) aboutCard(c *ui.Context, ink paneInk) {
-	ui.Row(c).Padding(14, 16).Gap(14).AlignItems(ui.Center).Children(func() {
+func (a *app) aboutCard(k *settingsKit) {
+	c, ink := k.c, k.ink
+	ui.Row(c).Padding(16, 20).Gap(14).AlignItems(ui.Center).Children(func() {
 		ui.Image(c, brandIcon()).Size(52, 52).Fit(ui.Cover).Shrink(0)
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(3).Children(func() {
 			ui.Text(c, mygo.App.Name()+" "+mygo.App.Version()).FontSize(14).FontWeight(700)
 			ui.Text(c, "由 nya 制作，基于 egoist/mygo-cloudmusic 修改，以 AGPL-3.0 开源。与网易云音乐官方无关").
 				FontSize(12).TextColor(ink.muted).LineHeight(1.4)
 		})
-		if ui.Button(c.Key("source"), "源码").Clicked() {
+		if k.button("source", "源码", iconExternal, false, false).Clicked() {
 			openLink(appSource)
 		}
-		if ui.Button(c.Key("origin"), "原项目").Clicked() {
+		if k.button("origin", "原项目", iconExternal, false, false).Clicked() {
 			openLink(appOrigin)
 		}
 	})

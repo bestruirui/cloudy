@@ -262,7 +262,7 @@ func (a *app) paneSelect(c *ui.Context, label string, selected *string, options 
 	if sel.Trigger.Hovered() {
 		bg = ink.press
 	}
-	sel.Trigger.Width(164).Height(32).PaddingX(12).Gap(6).Radius(14).AlignItems(ui.Center).FocusRing(false).Label(label).
+	sel.Trigger.MinWidth(112).MaxWidth(220).Height(32).PaddingX(14).Gap(8).Radius(999).Border(0.5, ink.line).AlignItems(ui.Center).FocusRing(false).Label(label).
 		Background(sel.Trigger.AnimateColor("bg", bg, ui.Animation{Duration: 100 * time.Millisecond})).Children(func() {
 		font(ui.Text(c, *selected).FontSize(13).SingleLine().Grow(1).Shrink(1).MinWidth(0).TextColor(ink.text), *selected)
 		ui.Icon(c, iconUpDown).Size(13, 13).Shrink(0).TextColor(ink.faint)
