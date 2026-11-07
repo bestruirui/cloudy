@@ -127,10 +127,10 @@ func (a *app) scrubber(c *ui.Context, st *scrubState, track, fill ui.Color, heig
 		}
 		switch {
 		case smoking > 0.01 && (pl.Playing() || smoking < 1):
-			// The smoke drifts slowly, at the frame rate set for what
-			// moves on its own (motionFrame), not at each of the display's
-			// refreshes.
-			p.After(max(motionFrame(), time.Second/60))
+			// The smoke drifts slowly, under a point a frame at 30 frames
+			// a second, which show it smooth for a quarter of what a 120 Hz
+			// display would draw.
+			p.After(time.Second / 30)
 		case pl.Playing() && !st.active && dur > 0:
 			// Again when the fill has moved a pixel of the screen, which
 			// takes a good part of a second, rather than every frame.
@@ -474,7 +474,7 @@ func (a *app) playerBar(c *ui.Context) {
 					// Another song's comes in over the last one's.
 					var shown ui.Element
 					if spinning {
-						shown = a.barDisc(c, tr, 48, motionFrame())
+						shown = a.barDisc(c, tr, 48, discFrame)
 					} else {
 						shown = a.cover(c.Key(tr.ID), tr.Album.PicURL, 120, 48, cover)
 					}

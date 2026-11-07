@@ -160,7 +160,7 @@ func (a *app) settingsBody(c *ui.Context) {
 			})
 
 			group("启动与性能", func() {
-				row("动画帧率", "旋转封面、播放页背景、逐字歌词等持续动画的帧率；滚动和页面切换始终跟随显示器", func() {
+				row("动画帧率", "页面切换、滚动、展开收起等动画的最高帧率；旋转封面、播放页背景和逐字歌词保持各自省资源的帧率，不受影响", func() {
 					labels := make([]string, len(frameRates))
 					for i, r := range frameRates {
 						labels[i] = r.label

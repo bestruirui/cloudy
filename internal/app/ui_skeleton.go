@@ -55,7 +55,7 @@ func (s shimmer) paint(p *ui.Painter, r ui.Rect, radius float32) {
 		p.After(shimmerPeriod - at)
 		return
 	}
-	p.AnimationFrameRate(motionFPS)
+	p.AnimationFrameRate(60)
 	t := float32(at) / float32(shimmerSweep)
 	x := -shimmerBand/2 + t*(s.span+shimmerBand)
 	if x+shimmerBand/2 < r.X || x-shimmerBand/2 > r.X+r.W {

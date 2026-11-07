@@ -1,55 +1,43 @@
 package app
 
-import "time"
+import "github.com/egoist/mygo/ui"
 
-// What moves on its own, as the cover turning in the bar, the fog behind
-// Now Playing or the words of a line lighting up as they are sung, is drawn
-// at the frame rate the listener chose, rather than at each of the
-// display's refreshes, which on a 144 or 240 Hz display would keep the GPU
-// busy for motion the eye does not see. What the listener moves, scrolls
-// and the app's transitions go at the display's own rate whatever it is.
+// The frame rate the listener chooses caps how often the windows draw what
+// moves at the display's own rate: transitions, scrolling, the springs of
+// opening Now Playing. What moves on its own keeps the rate it was made
+// for whatever is chosen, as slow as still looks smooth: the cover turning
+// in the bar 15 frames a second, the fog and the smoke 30, the words of a
+// line lighting up 25.
 
-// frameRateDisplay is the setting for each of the display's refreshes.
-const frameRateDisplay = 1000
-
-// frameRates are the rates the listener chooses among, in the settings.
+// frameRates are the rates the listener chooses among, in the settings:
+// 0, each of the display's refreshes, is the default.
 var frameRates = []struct {
 	fps   int
 	label string
 }{
+	{0, "跟随显示器"},
 	{30, "30 帧（省电）"},
 	{60, "60 帧"},
 	{120, "120 帧"},
 	{144, "144 帧"},
-	{frameRateDisplay, "跟随显示器"},
 }
 
-// motionFPS is the frame rate of what moves on its own, as set: the
-// window paints it again no faster than the display refreshes.
-var motionFPS float32 = 60
-
-// setFrameRate takes the listener's choice, 0 for the default.
+// setFrameRate takes the listener's choice, 0 for the display's rate. A
+// rate above any display's, as the setting was once kept for it, is the
+// display's.
 func setFrameRate(fps int) {
-	if fps <= 0 {
-		fps = 60
+	if fps < 0 || fps > 500 {
+		fps = 0
 	}
-	motionFPS = float32(fps)
-}
-
-// motionFrame is how long a frame of what moves on its own lasts.
-func motionFrame() time.Duration {
-	return time.Duration(float32(time.Second) / motionFPS)
+	ui.SetMaxFrameRate(float32(fps))
 }
 
 // frameRateLabel names the rate fps.
 func frameRateLabel(fps int) string {
-	if fps <= 0 {
-		fps = 60
-	}
 	for _, r := range frameRates {
 		if r.fps == fps {
 			return r.label
 		}
 	}
-	return frameRates[1].label
+	return frameRates[0].label
 }

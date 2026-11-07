@@ -623,8 +623,8 @@ func (a *app) timedLines(c *ui.Context, scroll ui.Element, lines []lyrics.Line, 
 									}
 								})
 								if pl.Playing() {
-									// Words brighten at the frame rate set for what moves on its own.
-									c.After(motionFrame())
+									// Words brighten smoothly enough at 25 frames a second.
+									c.After(40 * time.Millisecond)
 								}
 							} else {
 								ui.Text(c, l.Text).FontSize(st.size).FontWeight(st.weight).LineHeight(st.lineHeight).LetterSpacing(-0.4).TextColor(white)

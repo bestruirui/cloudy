@@ -125,9 +125,9 @@ type settings struct {
 	DownloadFolder string `json:"downloadFolder,omitempty"`
 	// SearchHistory keeps submitted keywords, most recent first.
 	SearchHistory []string `json:"searchHistory,omitempty"`
-	// FrameRate is how many frames a second what moves on its own is drawn
-	// at: the turning cover, the fog, the lyrics lighting up word by word;
-	// 0 for 60, frameRateDisplay for each of the display's refreshes.
+	// FrameRate is the most frames a second the windows draw transitions,
+	// scrolling and springs at, 0 for each of the display's refreshes: what
+	// moves on its own keeps its own rate whatever it is.
 	FrameRate int `json:"frameRate,omitempty"`
 	// LyricTrans shows the translation under each line of lyrics. Off is
 	// kept too.

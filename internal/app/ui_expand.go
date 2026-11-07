@@ -395,7 +395,7 @@ func or14(r float32) float32 {
 }
 
 // A discState is how far the bar's cover has turned. The cover turns as it is
-// painted, at the frame rate set (motionFrame), and the view isn't built for it: this
+// painted, at the rate of discFrame, and the view isn't built for it: this
 // says how far, for that and for the flight out of the bar to start from it.
 type discState struct {
 	on    bool
@@ -409,6 +409,8 @@ type discState struct {
 const (
 	discRate   = 30
 	discCoast  = 0.35
+	discFrame  = time.Second / 15
+	discSmooth = time.Second / 40 // where it is large enough to be looked at
 )
 
 // at is how far it has turned by now.
