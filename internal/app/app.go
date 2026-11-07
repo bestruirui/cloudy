@@ -298,7 +298,6 @@ func Run() error {
 		a.settings = loadSettings()
 		setFrameRate(a.settings.FrameRate)
 		a.applyOutput()
-		a.pl.PodcastSpeed = a.settings.PodcastSpeed
 		a.settings.applyAppearance()
 		a.loadFont()
 		a.npPane = a.lyricsPaneChosen()
@@ -306,6 +305,7 @@ func Run() error {
 		// made, and the view asks the player what plays.
 		a.art = newArtCache(a.post)
 		a.pl = player.New(a.post)
+		a.pl.PodcastSpeed = a.settings.PodcastSpeed
 		a.pl.Quality = func() string { return a.settings.Quality }
 		a.pl.Normalize = func() bool { return a.settings.Normalize }
 		a.pl.Cache = newSongCache(a.settings.CacheMB)
