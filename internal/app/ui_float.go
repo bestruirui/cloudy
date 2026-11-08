@@ -244,7 +244,10 @@ func (a *app) deskView(c *ui.Context) {
 
 // deskLine is a line of the lyrics, lit word by word as it is sung if it is
 // the main one, with an edge of eight copies of it around it if the style has
-// one: there is no stroke to give text.
+// one: there is no stroke to give text. The copies are laid out as the line
+// is, word by word too: a line of runs and the same text in one run are not
+// always as wide, kana and hanzi falling back to fonts of their own, and an
+// edge laid out the other way drifted off its words along the line.
 func (a *app) deskLine(c *ui.Context, key, text string, words []lyrics.Word, pos time.Duration, size float32, look deskLook, main bool) {
 	style := func(e ui.Element) ui.Element {
 		weight := 700
@@ -253,30 +256,41 @@ func (a *app) deskLine(c *ui.Context, key, text string, words []lyrics.Word, pos
 		}
 		return e.FontSize(size).FontWeight(weight).SingleLine().MaxWidth(deskW - 90)
 	}
+	byWord := main && len(words) > 0
+	// lay is the line in color, or each word in a color of its own.
+	lay := func(key any, color func(wd lyrics.Word) ui.Color) ui.Element {
+		if !byWord {
+			return style(ui.Text(c.Key(key), text)).TextColor(color(lyrics.Word{}))
+		}
+		return style(ui.RichText(c.Key(key))).Children(func() {
+			for i, wd := range words {
+				ui.Text(c.Key(i), wd.Text).TextColor(color(wd))
+			}
+		})
+	}
+	flat := func(color ui.Color) func(lyrics.Word) ui.Color {
+		return func(lyrics.Word) ui.Color { return color }
+	}
 	ui.Box(c.Key(key)).Shrink(0).PassThrough().Children(func() {
 		// Positioned elements paint over those in the flow, in order: the
 		// line itself is positioned too, last, and this holds its place.
-		style(ui.Text(c.Key("room"), text)).Opacity(0)
+		lay("room", flat(ui.Transparent)).Opacity(0)
 		if look.edge.A > 0 {
 			width := max(1.1, size*0.055)
 			for i := range 8 {
 				turn := float64(i) * math.Pi / 4
-				style(ui.Text(c.Key(i), text)).Absolute().TextColor(look.edge).
+				lay(i, flat(look.edge)).Absolute().
 					Left(width * float32(math.Cos(turn))).Top(width * float32(math.Sin(turn)))
 			}
 		}
 		var line ui.Element
 		switch {
-		case main && len(words) > 0:
-			line = style(ui.RichText(c.Key("words"))).Children(func() {
-				for i, wd := range words {
-					ui.Text(c.Key(i), wd.Text).TextColor(look.unsung.Mix(look.sung, wordLit(wd, pos)))
-				}
-			})
+		case byWord && a.settings.DeskWords:
+			line = lay("words", func(wd lyrics.Word) ui.Color { return look.unsung.Mix(look.sung, wordLit(wd, pos)) })
 		case main:
-			line = style(ui.Text(c.Key("line"), text)).TextColor(look.sung)
+			line = lay("words", flat(look.sung))
 		default:
-			line = style(ui.Text(c.Key("line"), text)).TextColor(look.second)
+			line = lay("line", flat(look.second))
 		}
 		line.Absolute().Left(0).Top(0)
 	})

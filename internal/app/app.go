@@ -30,6 +30,7 @@ const (
 	pageDownloads
 	pageRecent
 	pageCloud
+	pageStyle // the day's songs in the styles picked
 )
 
 type route struct {
@@ -262,6 +263,9 @@ type app struct {
 	restored     bool   // playback picked up where it was left
 	savedSession string // the session as last kept
 	sessionDue   bool   // a save of the session is due
+
+	style      styleState    // the day's songs in the styles picked
+	progressAt progressShown // what the taskbar button last showed of the song
 }
 
 // post runs fn on the main thread and redraws both windows. Without a
@@ -426,6 +430,7 @@ func Run() error {
 			}
 		})
 	})
+	a.followProgress()
 	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) {
 		a.quitting = true
 		a.settings.Volume = a.volume

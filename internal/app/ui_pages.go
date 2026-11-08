@@ -65,11 +65,7 @@ func (a *app) homePage(c *ui.Context) {
 
 		if len(a.recPlaylists) > 0 {
 			a.section(c, "今日为你推荐")
-			ui.Grid(c).Columns(a.columns(c, 168)).GapX(20).GapY(28).Children(func() {
-				for i := range a.recPlaylists[:min(len(a.recPlaylists), a.columns(c, 168)*2)] {
-					a.playlistCard(c.Key(a.recPlaylists[i].ID), &a.recPlaylists[i])
-				}
-			})
+			a.recommendedGrid(c)
 		}
 
 		a.section(c, "官方榜单")

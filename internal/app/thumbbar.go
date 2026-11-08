@@ -44,6 +44,7 @@ func (a *app) syncThumbs() {
 			canLike: tr.LocalPath == "",
 		}
 	}
+	a.syncProgress()
 	at := a.thumbsAt
 	if at != nil && *at == st {
 		return

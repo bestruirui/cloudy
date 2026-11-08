@@ -55,6 +55,7 @@ func (a *app) signedIn(prof *netease.Profile) {
 	a.restoreDownloadQueue()
 	a.restoreUploadQueue()
 	a.mine, a.saved, a.recPlaylists, a.liked = nil, nil, nil, nil
+	a.style = styleState{}
 	a.myAlbums, a.myAlbumsErr, a.myAlbumsBusy = nil, "", false
 	a.cloud = cloudState{}
 	a.likedPrograms, a.askedPrograms = nil, nil

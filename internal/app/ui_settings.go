@@ -652,6 +652,9 @@ func (a *app) settingsLyricsPage(k *settingsKit) {
 		k.sub("锁定", "锁定后鼠标会穿过歌词，不会挡住下面的内容", s.DeskLyrics, func() {
 			k.toggle("desk-lock", "锁定桌面歌词", &s.DeskLock, false, a.applyDeskLyrics)
 		})
+		k.sub("逐字高亮", "唱到哪个字亮到哪个字；关掉后当前这一行整行亮起", s.DeskLyrics, func() {
+			k.toggle("desk-words", "逐字高亮", &s.DeskWords, false, nil)
+		})
 	})
 }
 
@@ -927,6 +930,11 @@ func (a *app) settingsSystemPage(k *settingsKit) {
 		})
 		k.sub("隐藏到托盘", "开机自动打开时不弹出窗口，从托盘图标打开", login, func() {
 			k.toggle("start-hidden", "开机启动时隐藏到托盘", &s.StartHidden, false, nil)
+		})
+	})
+	k.group("任务栏", func() {
+		k.row("播放进度", "在任务栏图标上显示当前歌曲播放到哪里，暂停时显示为黄色", func() {
+			k.toggle("taskbar-progress", "任务栏播放进度", &s.TaskbarProgress, false, a.syncProgress)
 		})
 	})
 	k.group("小窗口", func() {

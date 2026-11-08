@@ -103,6 +103,7 @@ func (a *app) view(c *ui.Context) {
 	})
 	a.loginDialog(c)
 	a.playlistNameDialog(c)
+	a.stylePickerDialog(c)
 	a.deletePlaylistDialog(c)
 	a.downloadDeleteDialog(c)
 	a.settingsPanel(c)
@@ -206,6 +207,10 @@ func (a *app) load(r route) {
 		a.recent.sure = false
 	case pageCloud:
 		a.loadCloud(false)
+	case pageStyle:
+		if !a.style.loaded {
+			a.loadStyle()
+		}
 	}
 }
 
@@ -485,6 +490,8 @@ func (a *app) content(c *ui.Context) {
 			a.recentPage(c)
 		case pageCloud:
 			a.cloudPage(c)
+		case pageStyle:
+			a.stylePage(c)
 		}
 	})
 }
@@ -506,6 +513,8 @@ func (a *app) centered(c *ui.Context, err string, retry func()) {
 
 func (a *app) loadHome() {
 	a.homeLoading, a.homeErr = true, ""
+	a.style.loaded = false
+	a.loadStyle()
 	a.filteredPlaylists = [len(playlistFilters)]*playlistBrowseData{}
 	signedIn := a.profile != nil
 	at := time.Now()

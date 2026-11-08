@@ -184,7 +184,7 @@ func (a *app) lifted(e ui.Element) {
 // them.
 func pageLevel(r route) int {
 	switch r.page {
-	case pagePlaylist, pageArtist, pageAlbum, pageUser, pagePodcast:
+	case pagePlaylist, pageArtist, pageAlbum, pageUser, pagePodcast, pageStyle:
 		return 1
 	}
 	return 0

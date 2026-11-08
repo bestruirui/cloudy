@@ -86,6 +86,12 @@ type settings struct {
 	DeskScale  float64 `json:"deskScale,omitempty"`
 	DeskX      int     `json:"deskX,omitempty"`
 	DeskY      int     `json:"deskY,omitempty"`
+	// DeskWords lights the line sung word by word, as it is sung; off, the
+	// whole line is lit at once.
+	DeskWords bool `json:"deskWords"`
+	// TaskbarProgress shows how far the song has played on the window's
+	// taskbar button.
+	TaskbarProgress bool `json:"taskbarProgress,omitempty"`
 	// MiniX and MiniY are where the mini window was left.
 	MiniX int `json:"miniX,omitempty"`
 	MiniY int `json:"miniY,omitempty"`
@@ -167,7 +173,7 @@ type settings struct {
 }
 
 func defaultSettings() settings {
-	return settings{UpdateChecks: true, BarSpin: true, GlobalKeys: true, NotchActivity: true, Quality: "exhigh", Appearance: "system", LiquidGlass: true, NpLight: true, GlowLevel: 0.5, GlassClear: 0.6, GlassBend: 0.3, GlassPanels: true, Volume: 0.8, Normalize: true, AppIcon: "dock-and-menubar", CacheMB: 2048, Captions: true, LyricTrans: true}
+	return settings{UpdateChecks: true, BarSpin: true, GlobalKeys: true, NotchActivity: true, Quality: "exhigh", Appearance: "system", LiquidGlass: true, NpLight: true, GlowLevel: 0.5, GlassClear: 0.6, GlassBend: 0.3, GlassPanels: true, Volume: 0.8, Normalize: true, AppIcon: "dock-and-menubar", CacheMB: 2048, Captions: true, LyricTrans: true, DeskWords: true}
 }
 
 func settingsPath() (string, error) {
