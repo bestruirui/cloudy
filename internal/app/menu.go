@@ -37,7 +37,7 @@ func (a *app) setMenu() {
 		)
 	}
 	appMenu = append(appMenu, &mygo.MenuItem{Role: mygo.RoleQuit, Label: "退出" + name})
-	mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
+	items := []*mygo.MenuItem{
 		{Label: name, Submenu: appMenu},
 		{Label: "文件", Submenu: []*mygo.MenuItem{
 			{Label: "新建歌单…", Accelerator: "CmdOrCtrl+N", Click: run(func() {
@@ -78,5 +78,17 @@ func (a *app) setMenu() {
 			{Label: name, Accelerator: "CmdOrCtrl+0", Click: run(a.showMain)},
 			{Role: mygo.RoleFront, Label: "前置全部窗口"},
 		}},
-	}))
+	}
+	a.keyedItems = nil
+	var keyed func([]*mygo.MenuItem)
+	keyed = func(items []*mygo.MenuItem) {
+		for _, it := range items {
+			if it.Accelerator != "" && it.Role == "" {
+				a.keyedItems = append(a.keyedItems, it)
+			}
+			keyed(it.Submenu)
+		}
+	}
+	keyed(items)
+	mygo.App.SetMenu(mygo.NewMenu(items))
 }

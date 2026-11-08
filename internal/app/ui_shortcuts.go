@@ -66,6 +66,10 @@ func shortcutDefaults(act shortcutAction) string {
 func (a *app) shortcutEditorDialog(c *ui.Context) {
 	s := &a.shortcutSetup
 	if !s.open {
+		s.recording = ""
+	}
+	a.pauseKeys(s.recording != "")
+	if !s.open {
 		return
 	}
 	ink := a.inkOn(false)

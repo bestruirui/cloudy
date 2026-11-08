@@ -180,3 +180,31 @@ func TestShortcutEditorFrames(t *testing.T) {
 		}
 	}
 }
+
+// While a key is recorded the global keys are let go, so the system does
+// not run them in place of recording them, and come back after.
+func TestShortcutRecordingPausesKeys(t *testing.T) {
+	a := newTestApp()
+	a.settings = defaultSettings()
+	a.settings.GlobalKeys = true
+	oldRegister, oldUnregister := registerShortcut, unregisterShortcut
+	held := map[string]bool{}
+	registerShortcut = func(acc string, fn func()) error { held[acc] = true; return nil }
+	unregisterShortcut = func(acc string) { delete(held, acc) }
+	defer func() { registerShortcut, unregisterShortcut = oldRegister, oldUnregister }()
+	a.applyGlobalKeys()
+	if !held["Ctrl+Alt+Left"] {
+		t.Fatal("Ctrl+Alt+Left is not registered")
+	}
+	a.pauseKeys(true)
+	if len(held) != 0 {
+		t.Fatalf("keys still held while recording: %v", held)
+	}
+	if a.shortcutKeys["prev"] != "Ctrl+Alt+Left" {
+		t.Fatal("the keys shown were forgotten")
+	}
+	a.pauseKeys(false)
+	if !held["Ctrl+Alt+Left"] {
+		t.Fatal("the keys did not come back")
+	}
+}

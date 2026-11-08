@@ -109,9 +109,11 @@ func (a *app) view(c *ui.Context) {
 	a.accentDialog(c)
 	a.updateDialog(c)
 	a.shortcutEditorDialog(c)
+	a.fontPickerDialog(c)
 	a.effectsDialog(c)
 	a.menuOverlay(c)
 	a.downloadQueueDialog(c)
+	a.uploadQueueDialog(c)
 	a.paneToasts(c)
 	if a.toast != "" {
 		c.Toast(a.toast)
@@ -202,6 +204,8 @@ func (a *app) load(r route) {
 		a.loadDownloads(false)
 	case pageRecent:
 		a.recent.sure = false
+	case pageCloud:
+		a.loadCloud(false)
 	}
 }
 
@@ -258,6 +262,9 @@ func (a *app) sidebar(c *ui.Context) {
 				a.navItem(c, iconPodcast, "播客", route{page: pagePodcasts})
 				a.navItem(c, iconDownload, "下载歌曲", route{page: pageDownloads})
 				a.navItem(c, iconHistory, "最近播放", route{page: pageRecent})
+				if a.profile != nil {
+					a.navItem(c, iconCloud, "我的音乐云盘", route{page: pageCloud})
+				}
 				if a.searched.query != "" {
 					a.navItem(c, iconSearch, "搜索结果", a.searched)
 				}
@@ -476,6 +483,8 @@ func (a *app) content(c *ui.Context) {
 			a.downloadsPage(c)
 		case pageRecent:
 			a.recentPage(c)
+		case pageCloud:
+			a.cloudPage(c)
 		}
 	})
 }

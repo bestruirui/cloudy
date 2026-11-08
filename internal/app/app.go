@@ -29,6 +29,7 @@ const (
 	pagePodcasts
 	pageDownloads
 	pageRecent
+	pageCloud
 )
 
 type route struct {
@@ -134,6 +135,16 @@ type app struct {
 	sideDragging bool // the sidebar's edge is being dragged
 	shownTracks []netease.Track // the songs the page lists now, for choosing among them
 	recent      recentState     // the songs played on this computer
+	cloud       cloudState      // the listener's music cloud drive
+	// The songs going up to the cloud drive, as downloads come down.
+	uploadQueue     []cloudUpload
+	uploadJob       *uploadJob
+	uploadCancel    context.CancelFunc
+	uploadGen       int
+	uploadFailed    []cloudUpload
+	uploadsRestored bool
+	uploadedSome    bool // a song went up since the drive was last read
+	uploadView      uploadQueueView
 	outputList  outputList // the audio outputs, as last listed
 	comments    commentState
 	tabCount    rollState // the count on the comments' tab, as it rolls
@@ -184,6 +195,8 @@ type app struct {
 	shortcutKeys          map[string]string // the global key registered for each action
 	registeredKeys        []string          // the global keys held, to let them go
 	shortcutSetup         shortcutEditor
+	keysPaused            bool              // the global keys and menu keys are let go, for a recording
+	keyedItems            []*mygo.MenuItem  // the menu items with keys of their own
 	spin                  discState     // how far the bar's cover has turned
 	npPointer             bool          // the pointer is over Now Playing
 	headAt                ui.Rect       // where the cover of the page's header is
@@ -225,6 +238,7 @@ type app struct {
 	updates        bool            // the update plugin is used (useUpdater)
 	fontList       []uiFont        // the fonts on offer here (fontChoices)
 	fontsLoaded    map[string]bool // the fonts of files registered, by id (loadFont)
+	fontPick       fontPicker      // the dialog of the system's fonts
 
 	// The songs saved to disk, the ones on their way there, and where both
 	// are kept.

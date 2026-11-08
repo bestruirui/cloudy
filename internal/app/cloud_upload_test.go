@@ -1,0 +1,135 @@
+package app
+
+import (
+	"context"
+	"errors"
+	"path/filepath"
+	"testing"
+
+	"github.com/egoist/mygo/ui"
+
+	"netease-music-mygo/internal/netease"
+)
+
+// uploadTestApp is a signed-in app whose uploads wait until cancelled.
+func uploadTestApp(t *testing.T) *app {
+	t.Helper()
+	a := newTestApp()
+	a.settings = defaultSettings()
+	a.settings.path = filepath.Join(t.TempDir(), "settings.json")
+	a.profile = &netease.Profile{UserID: 1, Nickname: "小明"}
+	old := uploadToCloud
+	uploadToCloud = func(ctx context.Context, path string, meta netease.CloudUploadMeta, progress func(sent, total int64)) (int64, error) {
+		<-ctx.Done()
+		return 0, ctx.Err()
+	}
+	oldFetch := fetchCloud
+	fetchCloud = func() (*netease.CloudDrive, error) { return &netease.CloudDrive{}, nil }
+	t.Cleanup(func() { uploadToCloud, fetchCloud = old, oldFetch })
+	return a
+}
+
+// Songs go up one at a time, those after waiting in order, and a song asked
+// for twice is listed once.
+func TestUploadQueue(t *testing.T) {
+	a := uploadTestApp(t)
+	songs := []cloudUpload{
+		{Path: `C:\Music\a.mp3`, Title: "甲", Artist: "歌手", Size: 1 << 20},
+		{Path: `C:\Music\b.flac`, Title: "乙", Size: 2 << 20},
+	}
+	a.queueUploads(songs, 0)
+	if a.uploadJob == nil || a.uploadJob.item.Title != "甲" || len(a.uploadQueue) != 1 {
+		t.Fatalf("job %+v queue %+v", a.uploadJob, a.uploadQueue)
+	}
+	a.queueUploads([]cloudUpload{{Path: `c:\music\B.FLAC`}}, 0)
+	if len(a.uploadQueue) != 1 || a.toast != "这些歌曲已经在上传列表里" {
+		t.Fatalf("queued twice: %+v, toast %q", a.uploadQueue, a.toast)
+	}
+
+	// The one going up fails: it is kept to try again, and the next starts.
+	a.finishUpload(errors.New("netease: 上传文件失败"))
+	if len(a.uploadFailed) != 1 || a.uploadFailed[0].Reason != "上传文件失败" {
+		t.Fatalf("failed %+v", a.uploadFailed)
+	}
+	if a.uploadJob == nil || a.uploadJob.item.Title != "乙" {
+		t.Fatalf("next not started: %+v", a.uploadJob)
+	}
+
+	// Kept across launches: what went up as the app quit, and what failed.
+	b := uploadTestApp(t)
+	b.settings.path = a.settings.path
+	b.restoreUploadQueue()
+	if b.uploadJob == nil || b.uploadJob.item.Title != "乙" || len(b.uploadFailed) != 1 {
+		t.Fatalf("restored job %+v failed %+v", b.uploadJob, b.uploadFailed)
+	}
+	b.cancelUpload()
+
+	// Tried again, the failed one waits behind the one going up.
+	a.retryUploads()
+	if len(a.uploadFailed) != 0 || len(a.uploadQueue) != 1 || a.uploadQueue[0].Title != "甲" {
+		t.Fatalf("retry: failed %+v queue %+v", a.uploadFailed, a.uploadQueue)
+	}
+
+	// Done, the drive is read again.
+	a.finishUpload(nil)
+	if a.toast != "已上传到云盘：乙" || a.uploadJob == nil {
+		t.Fatalf("toast %q job %+v", a.toast, a.uploadJob)
+	}
+	a.cancelUpload()
+	if a.uploadJob != nil || !a.cloud.loading {
+		t.Fatalf("the drive was not read again: job %+v cloud %+v", a.uploadJob, a.cloud)
+	}
+}
+
+// Files the drive does not take are left out, and said so.
+func TestUploadSkipsOtherFiles(t *testing.T) {
+	if uploadable("cover.jpg") || !uploadable(`D:\歌\x.FLAC`) {
+		t.Fatal("uploadable")
+	}
+	a := uploadTestApp(t)
+	a.queueUploads(nil, 2)
+	if a.toast != "所选文件不是云盘支持的音乐" {
+		t.Fatalf("toast %q", a.toast)
+	}
+}
+
+// The cloud page, empty or not, offers the upload and its list, which lists
+// what goes up and cancels what is chosen.
+func TestUploadList(t *testing.T) {
+	a := uploadTestApp(t)
+	a.cloud.drive = &netease.CloudDrive{}
+	a.route = route{page: pageCloud}
+	tt := ui.NewTester(a.view, 1200, 800)
+	tt.Frame()
+	for _, s := range []string{"我的音乐云盘", "上传音乐", "上传列表"} {
+		if !tt.HasText(s) {
+			t.Fatalf("no %q: %v", s, tt.Texts())
+		}
+	}
+	a.queueUploads([]cloudUpload{
+		{Path: `C:\Music\a.mp3`, Title: "甲", Size: 1 << 20},
+		{Path: `C:\Music\b.mp3`, Title: "乙", Size: 1 << 20},
+	}, 0)
+	a.uploadJob.sent, a.uploadJob.all = 1<<19, 1<<20
+	tt.Frame()
+	if err := tt.Click("上传列表 2 · 50%"); err != nil {
+		t.Fatalf("%v: %v", err, tt.Texts())
+	}
+	tt.Frame()
+	for _, s := range []string{"正在上传 1 首 · 等待 1 首", "甲", "乙", "等待中 · 第 1 位"} {
+		if !tt.HasText(s) {
+			t.Fatalf("no %q: %v", s, tt.Texts())
+		}
+	}
+	if err := tt.Click("全选"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if err := tt.Click("取消所选"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.uploadJob != nil || len(a.uploadQueue) != 0 || !tt.HasText("上传列表是空的") {
+		t.Fatalf("job %+v queue %+v: %v", a.uploadJob, a.uploadQueue, tt.Texts())
+	}
+}

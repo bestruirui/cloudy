@@ -725,11 +725,16 @@ func (a *app) settingsAppearancePage(k *settingsKit) {
 		k.row("字体", "界面、歌词与评论使用的字体", func() {
 			fonts := a.fontChoices()
 			a.loadFontFiles()
-			labels := make([]string, len(fonts))
-			chosen := fontOf(s.Font).label
-			for i, f := range fonts {
-				labels[i] = f.label
+			// The font chosen in the picker shows among those on offer.
+			if cur := fontOf(s.Font); cur.custom() {
+				fonts = append(fonts[:len(fonts):len(fonts)], cur)
 			}
+			labels := make([]string, 0, len(fonts)+1)
+			chosen := fontOf(s.Font).label
+			for _, f := range fonts {
+				labels = append(labels, f.label)
+			}
+			labels = append(labels, moreFonts)
 			own := func(label string) string {
 				for _, f := range fonts {
 					if f.label == label && f.id != "" {
@@ -739,6 +744,10 @@ func (a *app) settingsAppearancePage(k *settingsKit) {
 				return defaultFontFamily()
 			}
 			if a.paneSelect(c.Key("font"), "字体", &chosen, labels, own) {
+				if chosen == moreFonts {
+					a.openFontPicker()
+					return
+				}
 				for _, f := range fonts {
 					if f.label == chosen {
 						s.Font = f.id

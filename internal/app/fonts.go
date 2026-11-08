@@ -30,6 +30,22 @@ type uiFont struct {
 	// files are those of the font in the fonts directory of the app's
 	// resources, for a font the system doesn't have.
 	files []string
+	// imported is the file of a font the listener brought, in the fonts
+	// directory of the app's data.
+	imported string
+}
+
+// Fonts beyond those on offer: any family of the system's, by its name,
+// or a font file the listener imported, by the file's name.
+const (
+	systemFontPrefix   = "sys:"
+	importedFontPrefix = "file:"
+)
+
+// importedFamily is the family an imported font is registered under, its
+// own name aside, so that one file can't hide a system font of its name.
+func importedFamily(file string) string {
+	return "Cloudy Imported " + strings.TrimSuffix(file, filepath.Ext(file))
 }
 
 // uiFonts are the fonts on offer, the default first. Those in the system
@@ -64,12 +80,27 @@ func fontOf(id string) uiFont {
 			return f
 		}
 	}
+	if family, ok := strings.CutPrefix(id, systemFontPrefix); ok && family != "" {
+		return uiFont{id: id, label: family, family: family}
+	}
+	if file, ok := strings.CutPrefix(id, importedFontPrefix); ok && file != "" && file == filepath.Base(file) {
+		return uiFont{id: id, label: strings.TrimSuffix(file, filepath.Ext(file)), family: importedFamily(file), imported: file}
+	}
 	return uiFonts[0]
 }
 
+// custom reports a font beyond those on offer, which may lack Han
+// characters: the default then draws those.
+func (f uiFont) custom() bool { return f.imported != "" || strings.HasPrefix(f.id, systemFontPrefix) }
+
 // fontFamily returns the family list of the font chosen, for the theme.
 func (a *app) fontFamily() string {
-	if f := fontOf(a.settings.Font); f.id != "" {
+	if f := fontOf(a.settings.Font); f.custom() {
+		if def := defaultFontFamily(); def != "" {
+			return f.family + ", " + def
+		}
+		return f.family
+	} else if f.id != "" {
 		return f.family
 	}
 	return defaultFontFamily()
@@ -80,6 +111,17 @@ func (a *app) fontFamily() string {
 // A font that won't load leaves its family to the system's fallback.
 func (a *app) loadFont() {
 	f := fontOf(a.settings.Font)
+	if f.imported != "" && !a.fontsLoaded[f.id] {
+		if err := registerImportedFont(f.imported); err != nil {
+			log.Printf("font %s: %v", f.id, err)
+			return
+		}
+		if a.fontsLoaded == nil {
+			a.fontsLoaded = map[string]bool{}
+		}
+		a.fontsLoaded[f.id] = true
+		return
+	}
 	if len(f.files) == 0 || a.fontsLoaded[f.id] {
 		return
 	}
@@ -170,4 +212,43 @@ func (a *app) fontChoices() []uiFont {
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+// importedFontsDir is where fonts the listener imports are kept.
+func importedFontsDir() (string, error) {
+	dir, err := mygo.App.Path(mygo.PathUserData)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "fonts"), nil
+}
+
+// registerImportedFont registers a font imported before, by its file.
+func registerImportedFont(file string) error {
+	dir, err := importedFontsDir()
+	if err != nil {
+		return err
+	}
+	b, err := os.ReadFile(filepath.Join(dir, file))
+	if err != nil {
+		return err
+	}
+	return ui.RegisterFont(b, importedFamily(file))
+}
+
+// systemFontNames lists the families of the system, sorted, without those
+// the app registered and the vertical ones Windows names with an @.
+func systemFontNames() []string {
+	var names []string
+	seen := map[string]bool{}
+	for _, f := range ui.FontFamilies() {
+		key := strings.ToLower(f.Name)
+		if f.Registered || f.Name == "" || strings.HasPrefix(f.Name, "@") || seen[key] {
+			continue
+		}
+		seen[key] = true
+		names = append(names, f.Name)
+	}
+	slices.SortFunc(names, func(x, y string) int { return strings.Compare(strings.ToLower(x), strings.ToLower(y)) })
+	return names
 }

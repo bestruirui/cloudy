@@ -76,6 +76,29 @@ func (a *app) applyGlobalKeys() {
 	}
 }
 
+// pauseKeys lets go of the global shortcuts and turns off the menu items
+// with keys while a shortcut is recorded, and takes them back after: the
+// system runs a registered hot key, and the window a menu item's key,
+// before the recording sees the keys, so that Ctrl+← skipped back a song
+// instead of being recorded.
+func (a *app) pauseKeys(on bool) {
+	if a.keysPaused == on {
+		return
+	}
+	a.keysPaused = on
+	for _, it := range a.keyedItems {
+		it.SetEnabled(!on)
+	}
+	if !on {
+		a.applyGlobalKeys()
+		return
+	}
+	for _, key := range a.registeredKeys {
+		unregisterShortcut(key)
+	}
+	a.registeredKeys = nil
+}
+
 // toggleWindow shows the window when it is hidden, and hides it when it is
 // showing, for the global shortcut.
 func (a *app) toggleWindow() {

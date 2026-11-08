@@ -65,6 +65,9 @@ type Privilege struct {
 	ID int64 `json:"id"`
 	St int   `json:"st"` // below 0: taken down
 	Pl int   `json:"pl"` // the best bit rate the listener may play; 0 for none
+	// Cs is whether the listener uploaded the track to their cloud drive,
+	// which they play from whatever its rights.
+	Cs bool `json:"cs"`
 }
 
 // withPrivileges gives tracks their privileges, matched by ID.
@@ -99,6 +102,9 @@ func (t *Track) Playable() bool {
 		return true
 	}
 	if t.Privilege != nil {
+		if t.Privilege.Cs {
+			return true
+		}
 		return t.Privilege.St >= 0 && t.Privilege.Pl > 0
 	}
 	return t.Fee != 1 && t.Fee != 4
