@@ -695,7 +695,7 @@ func (a *app) settingsAppearancePage(k *settingsKit) {
 					a.changed()
 				}
 			}
-			own := s.Accent != ""
+			own := s.Accent != "" && s.Accent != accentSystem
 			for _, ac := range accentColors {
 				if ac.hex == s.Accent {
 					own = false
@@ -713,11 +713,21 @@ func (a *app) settingsAppearancePage(k *settingsKit) {
 			})
 			if wheel.Clicked() {
 				draft := base.accent
-				if s.Accent != "" {
-					draft = ui.Hex(s.Accent)
+				if hex := a.chosenAccent(); hex != "" {
+					draft = ui.Hex(hex)
 				}
 				a.accentDraft = accentPick{open: true, color: draft}
 				a.redraw()
+			}
+		})
+		k.row("跟随系统主题色", "使用 Windows 个性化里的主题色，系统换色时跟着变", func() {
+			on := s.Accent == accentSystem
+			if ui.Switch(k.c.Key("accent-system"), &on).Label("跟随系统主题色").Disabled(a.sysAccent == "" && !on).Changed() {
+				s.Accent = ""
+				if on {
+					s.Accent, s.AccentCover = accentSystem, false
+				}
+				a.changed()
 			}
 		})
 		k.row("主题色跟随封面", "按钮和高亮使用当前歌曲封面的颜色", func() {
@@ -930,6 +940,19 @@ func (a *app) settingsSystemPage(k *settingsKit) {
 		})
 		k.sub("隐藏到托盘", "开机自动打开时不弹出窗口，从托盘图标打开", login, func() {
 			k.toggle("start-hidden", "开机启动时隐藏到托盘", &s.StartHidden, false, nil)
+		})
+	})
+	k.group("关闭窗口", func() {
+		choices := []string{"最小化到托盘", "退出 Cloudy"}
+		chosen := choices[0]
+		if s.CloseQuits {
+			chosen = choices[1]
+		}
+		k.row("点击关闭按钮时", "最小化到托盘时音乐继续播放，从托盘图标打开", func() {
+			k.choose("close-action", "点击关闭按钮时", chosen, choices, func(i int) {
+				s.CloseQuits = i == 1
+				a.changed()
+			})
 		})
 	})
 	k.group("任务栏", func() {

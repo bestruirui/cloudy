@@ -122,6 +122,9 @@ type app struct {
 	suggestions suggestState          // what the search field's query may be after
 
 	nowPlaying  bool
+	npFull      bool      // Now Playing taking the whole screen
+	fullHintAt  time.Time // when the bubble telling of F11 first showed in this run
+	sysAccent   string    // the desktop's accent as #RRGGBB, "" where it has none
 	npOpen      bool      // Now Playing as it last showed: open or not
 	npChangedAt time.Time // when it last opened or closed
 	npPane      int       // paneLyrics, paneQueue, paneStage, paneComments, paneProgram or paneCaptions
@@ -408,7 +411,13 @@ func Run() error {
 		// The thumbnail's buttons, and their glyphs as the taskbar turns
 		// light or dark.
 		a.readTaskbarDark()
-		mygo.Theme.OnUpdated(func() { a.post(a.readTaskbarDark) })
+		a.readSysAccent()
+		mygo.Theme.OnUpdated(func() {
+			a.post(func() {
+				a.readTaskbarDark()
+				a.readSysAccent()
+			})
+		})
 		// A version that came out since the app last ran shows soon after
 		// it opens, and one a day after that, if the listener asks for it.
 		go a.autoCheckUpdates()
@@ -417,14 +426,15 @@ func Run() error {
 		}
 		// Closing the window hides it: music plays on, and the Dock icon
 		// or the tray's brings it back. A Linux desktop without a tray
-		// has neither, so there closing it quits.
+		// has neither, so there closing it quits, as it does wherever the
+		// listener asked for that (settings.CloseQuits).
 		a.win.OnClose(func(e *mygo.CloseEvent) {
 			if a.quitting {
 				return
 			}
 			e.PreventDefault()
-			if runtime.GOOS == "darwin" || a.tray != nil {
-				a.win.Hide()
+			if !a.settings.CloseQuits && (runtime.GOOS == "darwin" || a.tray != nil) {
+				a.hideMain()
 			} else {
 				mygo.App.Quit()
 			}

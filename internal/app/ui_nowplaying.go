@@ -175,13 +175,19 @@ func (a *app) nowPlayingBody(c *ui.Context, tr *netease.Track, art *artwork, acc
 	{
 		// The top strip drags the window; the chevron closes the view,
 		// showing only while the pointer is in the window, as the pane tabs do.
-		ui.Row(c).Height(topBar(c)).Justify(ui.Center).AlignItems(ui.Center).DragWindow().Children(func() {
+		// In full screen there is no window to drag.
+		strip := ui.Row(c).Height(topBar(c)).Justify(ui.Center).AlignItems(ui.Center)
+		if !a.npFull {
+			strip.DragWindow()
+		}
+		strip.Children(func() {
 			reveal(ui.Box(c.Key("close-reveal")), pointerIn).Children(func() {
 				if iconButton(c.Key("close"), iconDown, 22, white.Alpha(0.7), "关闭").Clicked() {
 					a.nowPlaying = false
 				}
 			})
 		})
+		a.fullScreenButton(c, pointerIn)
 		if a.npPane == paneStage {
 			// The stage takes the whole view: the lyrics are the show, the
 			// controls a slim bar at the foot.

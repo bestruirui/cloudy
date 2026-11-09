@@ -16,6 +16,8 @@ func newTestApp() *app {
 		artists: map[int64]*artistData{}, albums: map[int64]*albumData{}, users: map[int64]*userData{},
 		podcasts: map[int64]*podcastData{}, podcastTab: &podcastTab{}, searches: map[route]*searchData{},
 		lyricAt: -1, queueAt: -1, splashed: true,
+		// The F11 bubble showed long ago, not to count in what tests see.
+		fullHintAt: time.Unix(1, 0),
 	}
 	a.art = newArtCache(func(func()) {})
 	a.pl = player.New(func(func()) {})

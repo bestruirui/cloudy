@@ -468,10 +468,18 @@ func (a *app) songsBar(c *ui.Context, tracks []netease.Track, liked bool) {
 // floatBar is a bar floating over the player bar, as wide as it and of its
 // glass, its corners as round: the batch actions' while songs are chosen.
 func (a *app) floatBar(c *ui.Context) ui.Element {
+	const h = 52
 	bar := ui.Row(c).Absolute().Left(glassBarSide).Right(glassBarSide).Bottom(playerBarHeight + 10).
-		Height(52).PaddingX(14).Gap(8).AlignItems(ui.Center)
-	a.pane(bar, 26, false)
-	return bar
+		Height(h).Gap(8).AlignItems(ui.Center)
+	if !a.settings.LiquidGlass {
+		a.pane(bar, h/2, false)
+		return bar.PaddingX(14)
+	}
+	// The player bar's own glass, shadow and insets: its edges, its first
+	// and its last control line up with the bar's under it.
+	p := a.pal
+	return bar.Padding(0, 20, 0, glassBarInset+6).Radius(h/2).Shadow(0, 6, 24, -6, ui.RGBA(0, 0, 0, 0.3)).
+		Material(barGlass{dark: p.dark, clear: float32(a.settings.GlassClear), bend: float32(a.settings.GlassBend)})
 }
 
 // downloadBatchBar is the row over the player bar while downloaded songs

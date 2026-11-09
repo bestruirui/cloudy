@@ -528,7 +528,7 @@ func (a *app) morphView(c *ui.Context) {
 		win.Hide()
 		win.Destroy()
 		if toMini {
-			a.win.Hide()
+			a.hideMain()
 		} else {
 			a.dropFloat(&a.miniWin)
 		}
@@ -569,7 +569,7 @@ func (a *app) showMini() {
 	x, y := miniSpot(s.MiniX, s.MiniY)
 	if !a.startMorph(x, y, true) {
 		a.placeMini()
-		a.win.Hide()
+		a.hideMain()
 	}
 }
 

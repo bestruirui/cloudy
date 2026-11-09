@@ -106,7 +106,7 @@ func (a *app) toggleWindow() {
 		return
 	}
 	if a.win.IsVisible() {
-		a.win.Hide()
+		a.hideMain()
 		return
 	}
 	a.showMain()

@@ -16,10 +16,10 @@ const sidebarWidth = 232
 func (a *app) view(c *ui.Context) {
 	t := *c.Theme()
 	a.pal = paletteFor(&t)
-	if a.settings.Accent != "" {
+	if accent := a.chosenAccent(); accent != "" {
 		// The color the listener chose: the buttons take it, and the window
 		// and the sidebar a breath of it.
-		a.pal = themeAccent(a.pal, a.settings.Accent)
+		a.pal = themeAccent(a.pal, accent)
 	}
 	a.motion = a.motionLevel(c)
 	a.followCover()
@@ -74,7 +74,7 @@ func (a *app) view(c *ui.Context) {
 				a.sideColor = side.AnimateColor("tint", a.sidebarColor(), ui.Animation{Duration: 700 * time.Millisecond})
 				side.Background(a.sideColor)
 				a.sideEdge = a.sideColor
-			case a.settings.Accent != "":
+			case a.chosenAccent() != "":
 				// The window's material shows through the sidebar, which has
 				// no color of its own: lay the color over it, thin enough
 				// that the material still shows, so the color covers the
@@ -136,8 +136,18 @@ func (a *app) shortcuts(c *ui.Context) {
 		a.nowPlaying = false
 		a.searchBox.Focus(c)
 	})
+	if !a.nowPlaying {
+		a.setNpFull(false)
+	}
 	if a.nowPlaying {
-		c.OnShortcut(0, ui.KeyEscape, func() { a.nowPlaying = false })
+		c.OnShortcut(0, ui.KeyF11, func() { a.setNpFull(!a.npFull) })
+		c.OnShortcut(0, ui.KeyEscape, func() {
+			if a.npFull {
+				a.setNpFull(false)
+			} else {
+				a.nowPlaying = false
+			}
+		})
 		// ⌘ and a number choose Now Playing's tab of that place.
 		if a.pl.Current() != nil {
 			for i, t := range a.npTabs() {
